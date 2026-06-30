@@ -67,6 +67,7 @@ type ViewState = 'LIST' | 'CREATE_CHAPTER' | 'CHAPTER_DETAIL';
 type TabState = 'DETAILS' | 'CONTENT' | 'MEMBERS';
 type MemberSubTabState = 'GENERAL' | 'CHAPTER';
 type UserEditorMode = 'CREATE_CHAPTER' | 'CREATE_GENERAL' | 'EDIT';
+type ChapterImageField = 'logo' | 'image' | 'headImageUrl';
 
 interface UserEditorFormState {
   userId?: string;
@@ -152,10 +153,13 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isSavingChapter, setIsSavingChapter] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [pendingChapterImages, setPendingChapterImages] = useState<Partial<Record<ChapterImageField, File>>>({});
+  const [chapterImagePreviews, setChapterImagePreviews] = useState<Partial<Record<ChapterImageField, string>>>({});
   const [showPassword, setShowPassword] = useState(false);
   const [visibleChapterActivityCount, setVisibleChapterActivityCount] = useState(CHAPTER_ACTIVITY_INITIAL_VISIBLE_COUNT);
   const [activeChapterActivityEditor, setActiveChapterActivityEditor] = useState<{ activityIndex: number | null; isNew: boolean } | null>(null);
   const [chapterActivityDraft, setChapterActivityDraft] = useState<ChapterActivity | null>(null);
+  const [pendingChapterActivityImage, setPendingChapterActivityImage] = useState<{ file: File; oldFileId?: string } | null>(null);
   const [savingChapterActivity, setSavingChapterActivity] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isChapterActivityEditorVisible, setIsChapterActivityEditorVisible] = useState(false);
@@ -164,6 +168,14 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
   const closeTimerRef = useRef<number | null>(null);
   const chapterActivityCloseTimerRef = useRef<number | null>(null);
   const userModalCloseTimerRef = useRef<number | null>(null);
+  const chapterImagePreviewsRef = useRef<Partial<Record<ChapterImageField, string>>>({});
+
+  const clearPendingChapterImages = () => {
+    Object.values(chapterImagePreviewsRef.current).forEach((url) => URL.revokeObjectURL(url));
+    chapterImagePreviewsRef.current = {};
+    setChapterImagePreviews({});
+    setPendingChapterImages({});
+  };
 
   // --- Initial Load ---
   useEffect(() => {
@@ -174,6 +186,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     const entryTimer = window.setTimeout(() => setIsModalVisible(true), 10);
 
     return () => {
+      Object.values(chapterImagePreviewsRef.current).forEach((url) => URL.revokeObjectURL(url));
       window.clearTimeout(entryTimer);
       if (closeTimerRef.current != null) {
         window.clearTimeout(closeTimerRef.current);
@@ -263,6 +276,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
   // --- Handlers ---
   const handleChapterClick = (chapter: Chapter) => {
+    clearPendingChapterImages();
     setSelectedChapter(chapter);
     setChapterFormData(chapter);
     setVisibleChapterActivityCount(CHAPTER_ACTIVITY_INITIAL_VISIBLE_COUNT);
@@ -301,7 +315,6 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       chapterId = generateChapterId(chapterFormData.name);
     }
     
-    const payload = { ...chapterFormData, id: chapterId };
     const token = getSessionToken();
     if (!token) {
       await showAlert('Session expired. Please log in again.');
@@ -310,8 +323,39 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
     setIsSavingChapter(true);
     try {
+      const payload: Partial<Chapter> & { id: string } = { ...chapterFormData, id: chapterId };
+      const pendingUploads = Object.entries(pendingChapterImages) as [ChapterImageField, File][];
+
+      for (const [field, file] of pendingUploads) {
+        const oldFileId = field === 'logo'
+          ? chapterFormData.logoFileId || chapterFormData.logoUrl || chapterFormData.logo
+          : field === 'image'
+            ? chapterFormData.imageFileId || chapterFormData.imageUrl || chapterFormData.image
+            : chapterFormData.headImageFileId || chapterFormData.headImageUrl;
+        const uploadType = field === 'logo' ? 'chapter-logo' : `chapter-${field}`;
+        const upload = await uploadImageToDrive(file, uploadType, token, oldFileId);
+
+        if (!upload.success || !upload.url || !upload.fileId) {
+          throw new Error(upload.error || `Google Drive did not return an uploaded ${field} URL.`);
+        }
+
+        if (field === 'logo') {
+          payload.logo = upload.url;
+          payload.logoUrl = upload.url;
+          payload.logoFileId = upload.fileId;
+        } else if (field === 'image') {
+          payload.image = upload.url;
+          payload.imageUrl = upload.url;
+          payload.imageFileId = upload.fileId;
+        } else {
+          payload.headImageUrl = upload.url;
+          payload.headImageFileId = upload.fileId;
+        }
+      }
+
       const res = await DataService.saveChapter(chapterId, payload, token);
       if (res.success) {
+        clearPendingChapterImages();
         await showAlert(isNew ? 'Chapter Created!' : 'Chapter Updated!', {
           title: isNew ? 'Chapter Created' : 'Chapter Updated'
         });
@@ -321,7 +365,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         await showAlert('Failed to save: ' + res.message);
       }
     } catch (e) {
-      await showAlert('Error saving chapter');
+      await showAlert('Error saving chapter: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setIsSavingChapter(false);
     }
@@ -337,34 +381,9 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     }
 
     setIsUploadingLogo(true);
-    try {
-      const token = getSessionToken();
-      if (!token) {
-        await showAlert('Session expired. Please log in again.');
-        return;
-      }
-
-      const oldFileId = chapterFormData.logoFileId || chapterFormData.logoUrl || chapterFormData.logo;
-      const upload = await uploadImageToDrive(file, 'chapter-logo', token, oldFileId);
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-
-      setChapterFormData(prev => ({
-        ...prev,
-        logo: upload.url,
-        logoUrl: upload.url,
-        logoFileId: upload.fileId
-      }));
-    } catch (error) {
-      await showAlert(
-        'Error uploading logo to Google Drive: ' +
-        (error instanceof Error ? error.message : String(error))
-      );
-    } finally {
-      setIsUploadingLogo(false);
-      e.target.value = '';
-    }
+    setPendingChapterImage_('logo', file);
+    setIsUploadingLogo(false);
+    e.target.value = '';
   };
 
   const handleChapterImageFieldUpload = async (
@@ -378,28 +397,18 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       return;
     }
 
-    try {
-      const token = getSessionToken();
-      if (!token) throw new Error('Session expired. Please log in again.');
-      const oldFileId = field === 'image'
-        ? chapterFormData.imageFileId || chapterFormData.imageUrl || chapterFormData.image
-        : chapterFormData.headImageFileId || chapterFormData.headImageUrl;
-      const upload = await uploadImageToDrive(file, `chapter-${field}`, token, oldFileId);
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      const fileIdField = field === 'image' ? 'imageFileId' : 'headImageFileId';
-      setChapterFormData((prev) => ({
-        ...prev,
-        [field]: upload.url,
-        [fileIdField]: upload.fileId,
-        ...(field === 'image' ? { imageUrl: upload.url } : {})
-      }));
-    } catch (error) {
-      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      e.target.value = '';
-    }
+    setPendingChapterImage_(field, file);
+    e.target.value = '';
+  };
+
+  const setPendingChapterImage_ = (field: ChapterImageField, file: File) => {
+    const previousUrl = chapterImagePreviewsRef.current[field];
+    if (previousUrl) URL.revokeObjectURL(previousUrl);
+
+    const previewUrl = URL.createObjectURL(file);
+    chapterImagePreviewsRef.current = { ...chapterImagePreviewsRef.current, [field]: previewUrl };
+    setChapterImagePreviews({ ...chapterImagePreviewsRef.current });
+    setPendingChapterImages((current) => ({ ...current, [field]: file }));
   };
 
   const getChapterActivities_ = (): ChapterActivity[] => (
@@ -418,6 +427,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     chapterActivityCloseTimerRef.current = window.setTimeout(() => {
       setActiveChapterActivityEditor(null);
       setChapterActivityDraft(null);
+      setPendingChapterActivityImage(null);
     }, modalTransitionMs);
   };
 
@@ -488,6 +498,21 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
     setSavingChapterActivity(true);
     try {
+      if (pendingChapterActivityImage) {
+        const token = getSessionToken();
+        if (!token) throw new Error('Session expired. Please log in again.');
+        const upload = await uploadImageToDrive(
+          pendingChapterActivityImage.file,
+          'chapter-activity',
+          token,
+          pendingChapterActivityImage.oldFileId
+        );
+        if (!upload.success || !upload.url || !upload.fileId) {
+          throw new Error(upload.error || 'Chapter activity image upload failed.');
+        }
+        nextActivity.imageUrl = upload.url;
+        nextActivity.imageFileId = upload.fileId;
+      }
       const updatedActivities = applyChapterActivityDraft_(getChapterActivities_(), nextActivity, activityOptions);
       const canSyncImmediately = view === 'CHAPTER_DETAIL' && !!selectedChapter?.id;
 
@@ -559,26 +584,11 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
     if (!chapterActivityDraft) return;
 
-    try {
-      const token = getSessionToken();
-      if (!token) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(
-        file,
-        'chapter-activity',
-        token,
-        chapterActivityDraft.imageFileId || chapterActivityDraft.imageUrl
-      );
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      setChapterActivityDraft({
-        ...chapterActivityDraft,
-        imageUrl: upload.url,
-        imageFileId: upload.fileId
-      });
-    } catch (error) {
-      await showAlert('Error uploading activity image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
-    }
+    setPendingChapterActivityImage({
+      file,
+      oldFileId: chapterActivityDraft.imageFileId || chapterActivityDraft.imageUrl
+    });
+    setChapterActivityDraft({ ...chapterActivityDraft, imageUrl: URL.createObjectURL(file) });
   };
 
   const removeChapterActivity = async (activityIndex: number) => {
@@ -1296,9 +1306,9 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                           <div className="flex items-start gap-4">
                             {/* Preview */}
                             <div className="w-20 h-20 rounded-lg bg-black/20 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                               {chapterFormData.logo ? (
+                               {chapterImagePreviews.logo || chapterFormData.logo ? (
                                  <img
-                                   src={convertToCORSFreeLink(chapterFormData.logo as string)}
+                                   src={chapterImagePreviews.logo || convertToCORSFreeLink(chapterFormData.logo as string)}
                                    alt={`${chapterFormData.name || 'Chapter'} logo preview`}
                                    referrerPolicy="no-referrer"
                                    onError={(event) => {
@@ -1352,9 +1362,9 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                           <label className="text-xs font-bold text-primary-cyan uppercase tracking-wider">Chapter Cover Image</label>
                           <div className="flex items-start gap-4">
                             <div className="w-20 h-20 rounded-lg bg-black/20 border border-white/10 flex items-center justify-center overflow-hidden flex-shrink-0">
-                              {chapterFormData.image || chapterFormData.imageUrl ? (
+                              {chapterImagePreviews.image || chapterFormData.image || chapterFormData.imageUrl ? (
                                 <img
-                                  src={convertToCORSFreeLink(String(chapterFormData.image || chapterFormData.imageUrl))}
+                                  src={chapterImagePreviews.image || convertToCORSFreeLink(String(chapterFormData.image || chapterFormData.imageUrl))}
                                   alt={`${chapterFormData.name || 'Chapter'} cover preview`}
                                   className="w-full h-full object-cover"
                                 />
@@ -1388,9 +1398,9 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                           <div className="grid grid-cols-1 gap-4 md:grid-cols-[120px_1fr]">
                             <div className="space-y-2">
                               <div className="h-28 w-28 rounded-xl bg-black/20 border border-gray-200 dark:border-white/10 flex items-center justify-center overflow-hidden">
-                                {chapterFormData.headImageUrl ? (
+                                {chapterImagePreviews.headImageUrl || chapterFormData.headImageUrl ? (
                                   <img
-                                    src={convertToCORSFreeLink(String(chapterFormData.headImageUrl))}
+                                    src={chapterImagePreviews.headImageUrl || convertToCORSFreeLink(String(chapterFormData.headImageUrl))}
                                     alt={`${chapterFormData.name || 'Chapter'} head preview`}
                                     className="w-full h-full object-cover"
                                   />
@@ -1554,7 +1564,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                         )}
                         
                         <div className="flex w-full sm:w-auto flex-col-reverse sm:flex-row gap-3 sm:gap-4 sm:justify-end">
-                          <button onClick={() => setView('LIST')} className="text-white/60 hover:text-white px-4 py-2 w-full sm:w-auto">Cancel</button>
+                          <button onClick={() => { clearPendingChapterImages(); setView('LIST'); }} className="text-white/60 hover:text-white px-4 py-2 w-full sm:w-auto">Cancel</button>
                           <button 
                             onClick={handleSaveChapter}
                             disabled={isSavingChapter}

@@ -82,6 +82,7 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
   const [editedFounders, setEditedFounders] = useState<Founder[]>(founders);
   const [editedExecutiveOfficers, setEditedExecutiveOfficers] = useState<ExecutiveOfficer[]>(executiveOfficers);
   const [saving, setSaving] = useState(false);
+  const [pendingProfileImages, setPendingProfileImages] = useState<Record<string, { file: File; oldFileId?: string }>>({});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownDirection, setDropdownDirection] = useState<DropdownDirection>('down');
   const [dropdownPosition, setDropdownPosition] = useState<DropdownPosition | null>(null);
@@ -284,25 +285,17 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
 
   const uploadProfileImage = async (
     file: File,
+    key: string,
     oldFileId: string | undefined,
-    onUploaded: (imageUrl: string, fileId: string) => void
+    onPreview: (imageUrl: string) => void
   ) => {
     if (!file.type.startsWith('image/')) {
       await showAlert('Please select a valid image file.');
       return;
     }
 
-    try {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, 'profiles', sessionToken, oldFileId);
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      onUploaded(upload.url, upload.fileId);
-    } catch (error) {
-      await showAlert(error instanceof Error ? error.message : 'Error uploading image to Google Drive.');
-    }
+    setPendingProfileImages((current) => ({ ...current, [key]: { file, oldFileId } }));
+    onPreview(URL.createObjectURL(file));
   };
 
   const saveContent = async () => {
@@ -311,9 +304,27 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
       throw new Error('Session expired. Please log in again.');
     }
 
+    const nextFounders = editedFounders.map((founder) => ({ ...founder }));
+    const nextOfficers = editedExecutiveOfficers.map((officer) => ({ ...officer }));
+    for (const person of nextFounders) {
+      const pending = pendingProfileImages[`founder:${person.id}`];
+      if (!pending) continue;
+      const upload = await uploadImageToDrive(pending.file, 'profiles', sessionToken, pending.oldFileId);
+      if (!upload.success || !upload.url || !upload.fileId) throw new Error(upload.error || 'Founder image upload failed.');
+      person.imageUrl = upload.url;
+      person.imageFileId = upload.fileId;
+    }
+    for (const person of nextOfficers) {
+      const pending = pendingProfileImages[`officer:${person.id}`];
+      if (!pending) continue;
+      const upload = await uploadImageToDrive(pending.file, 'profiles', sessionToken, pending.oldFileId);
+      if (!upload.success || !upload.url || !upload.fileId) throw new Error(upload.error || 'Officer image upload failed.');
+      person.imageUrl = upload.url;
+      person.imageFileId = upload.fileId;
+    }
     const [foundersResult, executiveOfficersResult] = await Promise.all([
-      DataService.saveFounders(editedFounders, sessionToken),
-      DataService.saveExecutiveOfficers(editedExecutiveOfficers, sessionToken)
+      DataService.saveFounders(nextFounders, sessionToken),
+      DataService.saveExecutiveOfficers(nextOfficers, sessionToken)
     ]);
 
     if (!foundersResult.success) {
@@ -322,13 +333,17 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
     if (!executiveOfficersResult.success) {
       throw new Error(executiveOfficersResult.error || 'Failed to save executive officers');
     }
+    setEditedFounders(nextFounders);
+    setEditedExecutiveOfficers(nextOfficers);
+    setPendingProfileImages({});
+    return { founders: nextFounders, executiveOfficers: nextOfficers };
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await saveContent();
-      onSave({ founders: editedFounders, executiveOfficers: editedExecutiveOfficers });
+      const saved = await saveContent();
+      onSave(saved);
       await showAlert('Founders and executive officers saved successfully!', { title: 'Founders Updated' });
       requestClose();
     } catch (error) {
@@ -480,10 +495,10 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
                                 if (!file) return;
                                 void uploadProfileImage(
                                   file,
+                                  `founder:${founder.id}`,
                                   founder.imageFileId || founder.imageUrl,
-                                  (imageUrl, fileId) => {
+                                  (imageUrl) => {
                                     updateFounder(index, 'imageUrl', imageUrl);
-                                    updateFounder(index, 'imageFileId', fileId);
                                   }
                                 );
                               }}
@@ -601,10 +616,10 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
                                   if (!file) return;
                                   void uploadProfileImage(
                                     file,
+                                    `officer:${officer.id}`,
                                     officer.imageFileId || officer.imageUrl,
-                                    (imageUrl, fileId) => {
+                                    (imageUrl) => {
                                       updateExecutiveOfficer(index, 'imageUrl', imageUrl);
-                                      updateExecutiveOfficer(index, 'imageFileId', fileId);
                                     }
                                   );
                                 }}

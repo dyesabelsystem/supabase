@@ -40,6 +40,7 @@ export const PartnersEditor: React.FC<PartnersEditorProps> = ({ categories, onSa
   const [editedCategories, setEditedCategories] = useState<PartnerCategory[]>(categories || []);
   const [selectedCategoryIndex, setSelectedCategoryIndex] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+  const [pendingImages, setPendingImages] = useState<Record<string, { file: File; oldFileId?: string }>>({});
   const [pendingDeleteCategoryIndex, setPendingDeleteCategoryIndex] = useState<number | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -125,37 +126,42 @@ export const PartnersEditor: React.FC<PartnersEditorProps> = ({ categories, onSa
   };
 
   const handleImageUpload = async (categoryIndex: number, partnerIndex: number, file: File) => {
-    try {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const oldPartner = editedCategories[categoryIndex]?.partners[partnerIndex];
-      const oldFileId = oldPartner?.logoFileId || oldPartner?.logo;
-      const upload = await uploadImageToDrive(file, 'partners', sessionToken, oldFileId);
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      const updated = [...editedCategories];
-      const partners = [...updated[categoryIndex].partners];
-      partners[partnerIndex] = {
-        ...partners[partnerIndex],
-        logo: upload.url,
-        logoFileId: upload.fileId
-      };
-      updated[categoryIndex] = { ...updated[categoryIndex], partners };
-      setEditedCategories(updated);
-    } catch (error) {
-      await showAlert(error instanceof Error ? error.message : 'Error uploading image to Google Drive.');
-    }
+    if (!file.type.startsWith('image/')) return void await showAlert('Please select a valid image file.');
+    const oldPartner = editedCategories[categoryIndex]?.partners[partnerIndex];
+    if (!oldPartner) return;
+    setPendingImages((current) => ({
+      ...current,
+      [oldPartner.id]: { file, oldFileId: oldPartner.logoFileId || oldPartner.logo }
+    }));
+    updatePartner(categoryIndex, partnerIndex, 'logo', URL.createObjectURL(file));
   };
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      await onSave(editedCategories);
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      const nextCategories = editedCategories.map((category) => ({
+        ...category,
+        partners: category.partners.map((partner) => ({ ...partner }))
+      }));
+      for (const category of nextCategories) {
+        for (const partner of category.partners) {
+          const pending = pendingImages[partner.id];
+          if (!pending) continue;
+          const upload = await uploadImageToDrive(pending.file, 'partners', sessionToken, pending.oldFileId);
+          if (!upload.success || !upload.url || !upload.fileId) throw new Error(upload.error || 'Partner image upload failed.');
+          partner.logo = upload.url;
+          partner.logoFileId = upload.fileId;
+        }
+      }
+      await onSave(nextCategories);
+      setEditedCategories(nextCategories);
+      setPendingImages({});
       await showAlert('Partners saved successfully!', { title: 'Partners Updated' });
       requestClose();
     } catch (error) {
-      await showAlert('Error saving partners. Please try again.');
+      await showAlert(error instanceof Error ? error.message : 'Error saving partners. Please try again.');
     } finally {
       setSaving(false);
     }

@@ -79,6 +79,8 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
   const [activeActivityEditor, setActiveActivityEditor] = useState<{ pillarIndex: number; activityIndex: number | null; isNew: boolean } | null>(null);
   const [activityDraft, setActivityDraft] = useState<PillarActivity | null>(null);
   const [savingActivity, setSavingActivity] = useState(false);
+  const [pendingPillarImages, setPendingPillarImages] = useState<Record<number, { file: File; oldFileId?: string }>>({});
+  const [pendingActivityImage, setPendingActivityImage] = useState<{ file: File; oldFileId?: string } | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isActivityEditorVisible, setIsActivityEditorVisible] = useState(false);
   const closeTimerRef = useRef<number | null>(null);
@@ -181,6 +183,7 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
     activityEditorCloseTimerRef.current = window.setTimeout(() => {
       setActiveActivityEditor(null);
       setActivityDraft(null);
+      setPendingActivityImage(null);
     }, modalTransitionMs);
   };
 
@@ -254,6 +257,17 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
     setEditedPillars(updatedEditedPillars);
     setSavingActivity(true);
     try {
+      if (pendingActivityImage) {
+        const sessionToken = getSessionToken();
+        if (!sessionToken) throw new Error('Session expired. Please log in again.');
+        const upload = await uploadImageToDrive(pendingActivityImage.file, 'pillar-activities', sessionToken, pendingActivityImage.oldFileId);
+        if (!upload.success || !upload.url || !upload.fileId) throw new Error(upload.error || 'Activity image upload failed.');
+        nextActivity.imageUrl = upload.url;
+        nextActivity.imageFileId = upload.fileId;
+        updatedEditedPillars = applyActivityToPillars_(editedPillars, pillarIndex, nextActivity, activityOptions);
+        updatedPersistedPillars = applyActivityToPillars_(persistedPillars, pillarIndex, nextActivity, activityOptions);
+        setEditedPillars(updatedEditedPillars);
+      }
       await onSave(updatedPersistedPillars);
       setPersistedPillars(updatedPersistedPillars);
       if (activeActivityEditor.isNew) {
@@ -290,33 +304,17 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
       return;
     }
 
-    try {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(
-        file,
-        activityIndex === null ? 'pillars' : 'pillar-activities',
-        sessionToken,
-        activeActivityEditor && activityDraft
-          ? activityDraft.imageFileId || activityDraft.imageUrl
-          : editedPillars[pillarIndex]?.imageFileId || editedPillars[pillarIndex]?.imageUrl
-      );
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      if (activeActivityEditor && activityDraft) {
-        setActivityDraft({ ...activityDraft, imageUrl: upload.url, imageFileId: upload.fileId });
-      } else {
-        const updated = [...editedPillars];
-        updated[pillarIndex] = {
-          ...updated[pillarIndex],
-          imageUrl: upload.url,
-          imageFileId: upload.fileId
-        };
-        setEditedPillars(updated);
-      }
-    } catch (error) {
-      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
+    const previewUrl = URL.createObjectURL(file);
+    if (activeActivityEditor && activityDraft) {
+      setPendingActivityImage({ file, oldFileId: activityDraft.imageFileId || activityDraft.imageUrl });
+      setActivityDraft({ ...activityDraft, imageUrl: previewUrl });
+    } else {
+      const pillar = editedPillars[pillarIndex];
+      setPendingPillarImages((current) => ({
+        ...current,
+        [pillarIndex]: { file, oldFileId: pillar?.imageFileId || pillar?.imageUrl }
+      }));
+      updatePillar(pillarIndex, 'imageUrl', previewUrl);
     }
   };
 
@@ -324,7 +322,18 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
     var pillarsToSave = commitImpactAreasDraft_(selectedPillarIndex);
     setSaving(true);
     try {
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      pillarsToSave = pillarsToSave.map((pillar) => ({ ...pillar }));
+      for (const [rawIndex, pending] of Object.entries(pendingPillarImages)) {
+        const index = Number(rawIndex);
+        const upload = await uploadImageToDrive(pending.file, 'pillars', sessionToken, pending.oldFileId);
+        if (!upload.success || !upload.url || !upload.fileId) throw new Error(upload.error || 'Pillar image upload failed.');
+        pillarsToSave[index] = { ...pillarsToSave[index], imageUrl: upload.url, imageFileId: upload.fileId };
+      }
       await onSave(pillarsToSave);
+      setEditedPillars(pillarsToSave);
+      setPendingPillarImages({});
       setPersistedPillars(pillarsToSave);
       await showAlert('Pillars saved successfully!', { title: 'Pillars Updated' });
       requestClose();

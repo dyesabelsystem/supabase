@@ -24,6 +24,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const showLoginError = (message: string) => {
+    setError(message);
+    toast.error(message, { id: 'email-password-login-error' });
+  };
+
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
@@ -95,7 +100,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     setSuccessMessage('');
 
     if (!username || !password) {
-      setError('Please enter both username and password');
+      showLoginError('Please enter both username and password');
       return;
     }
 
@@ -104,7 +109,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     setIsLoading(false);
 
     if (!result.success) {
-      setError(result.error || 'Login failed. Please try again.');
+      showLoginError(result.error || 'Login failed. Please try again.');
       return;
     }
   };

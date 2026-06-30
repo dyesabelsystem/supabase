@@ -16,6 +16,7 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
   const { user } = useAuth();
   const { showAlert, showConfirm } = useAppDialog();
   const [isSaving, setIsSaving] = useState(false);
+  const [pendingImages, setPendingImages] = useState<Record<string, { file: File; oldFileId?: string }>>({});
   const chapterId = user?.chapterId || chapter?.id;
   const isAdmin = !!user && user.role === 'admin';
   const isScopedEditor = !!user && user.role === 'editor' && !!user.chapterId && user.chapterId === chapterId;
@@ -104,6 +105,7 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     });
     if (shouldDiscard) {
       setChapterData(originalData); // Revert changes
+      setPendingImages({});
       setIsEditing(false); // Exit edit mode
     }
   };
@@ -122,6 +124,26 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
         await showAlert('Chapter ID not set. Unable to save.');
         setIsSaving(false);
         return;
+      }
+
+      for (const [key, pending] of Object.entries(pendingImages)) {
+        const upload = await uploadImageToDrive(
+          pending.file,
+          key.startsWith('activity:') ? 'chapter-activity' : `chapter-${key}`,
+          sessionToken,
+          pending.oldFileId
+        );
+        if (!upload.success || !upload.url || !upload.fileId) {
+          throw new Error(upload.error || 'Image upload failed.');
+        }
+        if (key.startsWith('activity:')) {
+          const index = Number(key.slice('activity:'.length));
+          chapterData.activities[index] = { ...chapterData.activities[index], imageUrl: upload.url, imageFileId: upload.fileId };
+        } else {
+          const fileIdField = key === 'logoUrl' ? 'logoFileId' : key === 'headImageUrl' ? 'headImageFileId' : 'imageFileId';
+          (chapterData as any)[key] = upload.url;
+          (chapterData as any)[fileIdField] = upload.fileId;
+        }
       }
 
       // Map state back to the structure expected by the backend/types
@@ -155,6 +177,8 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
       const result = await DataService.saveChapter(chapterId, payload, sessionToken);
 
       if (result.success) {
+        setChapterData({ ...chapterData, activities: [...chapterData.activities] });
+        setPendingImages({});
         await showAlert('Chapter changes saved successfully!', { title: 'Chapter Updated' });
         setOriginalData(chapterData); // Update backup to new saved state
         setIsEditing(false); // Exit edit mode
@@ -174,36 +198,13 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
       return;
     }
 
-    try {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) {
-        await showAlert('Session expired. Please log in again.');
-        return;
-      }
-
-      const oldFileId = field === 'logoUrl'
-        ? chapterData.logoFileId || chapterData.logoUrl || chapterData.logo
-        : field === 'headImageUrl'
-          ? chapterData.headImageFileId || chapterData.headImageUrl
-          : chapterData.imageFileId || chapterData.imageUrl || chapterData.image;
-      const upload = await uploadImageToDrive(file, `chapter-${field}`, sessionToken, oldFileId);
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-
-      const fileIdField = field === 'logoUrl'
-        ? 'logoFileId'
-        : field === 'headImageUrl'
-          ? 'headImageFileId'
-          : 'imageFileId';
-      setChapterData(prev => ({
-        ...prev,
-        [field]: upload.url,
-        [fileIdField]: upload.fileId
-      }));
-    } catch (error) {
-      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
-    }
+    const oldFileId = field === 'logoUrl'
+      ? chapterData.logoFileId || chapterData.logoUrl
+      : field === 'headImageUrl'
+        ? chapterData.headImageFileId || chapterData.headImageUrl
+        : chapterData.imageFileId || chapterData.imageUrl;
+    setPendingImages((current) => ({ ...current, [field]: { file, oldFileId } }));
+    setChapterData((current) => ({ ...current, [field]: URL.createObjectURL(file) }));
   };
 
   const handleActivityChange = (index: number, field: string, value: string) => {
@@ -218,28 +219,12 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
       return;
     }
 
-    try {
-      const sessionToken = getSessionToken();
-      if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(
-        file,
-        'chapter-activity',
-        sessionToken,
-        chapterData.activities[index]?.imageFileId || chapterData.activities[index]?.imageUrl
-      );
-      if (!upload.success || !upload.url || !upload.fileId) {
-        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
-      }
-      const newActivities = [...chapterData.activities];
-      newActivities[index] = {
-        ...newActivities[index],
-        imageUrl: upload.url,
-        imageFileId: upload.fileId
-      };
-      setChapterData({ ...chapterData, activities: newActivities });
-    } catch (error) {
-      await showAlert('Error uploading activity image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
-    }
+    const activity = chapterData.activities[index];
+    setPendingImages((current) => ({
+      ...current,
+      [`activity:${index}`]: { file, oldFileId: activity?.imageFileId || activity?.imageUrl }
+    }));
+    handleActivityChange(index, 'imageUrl', URL.createObjectURL(file));
   };
 
   return (
