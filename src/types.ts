@@ -12,6 +12,7 @@ export interface Founder {
   role: string;
   bio: string;
   imageUrl: string;
+  imageFileId?: string;
 }
 
 export interface ExecutiveOfficer {
@@ -19,6 +20,7 @@ export interface ExecutiveOfficer {
   name: string;
   role: string;
   imageUrl: string;
+  imageFileId?: string;
 }
 
 export interface NavLink {
@@ -34,6 +36,7 @@ export interface ChapterActivity {
   description: string;
   date?: string;
   imageUrl?: string;
+  imageFileId?: string;
   learnMoreUrl?: string;
 }
 
@@ -43,8 +46,10 @@ export interface Chapter {
   location: string;
   logo: string;
   logoUrl?: string; // Backward-compatible alias used by some chapter payloads
+  logoFileId?: string; // Google Drive file ID for replacement/deletion
   image?: string; // Cover image for the chapter
   imageUrl?: string; // Backward-compatible alias used by backend responses/components
+  imageFileId?: string;
   description?: string;
   email?: string;
   phone?: string;
@@ -60,6 +65,7 @@ export interface Chapter {
   headRole?: string;
   headQuote?: string;
   headImageUrl?: string;
+  headImageFileId?: string;
   
   // Join CTA fields
   joinUrl?: string;
@@ -75,6 +81,7 @@ export interface PillarActivity {
   date: string;
   description: string;
   imageUrl: string;
+  imageFileId?: string;
   learnMoreUrl?: string;
   applicationOpen?: boolean;
   applicationUrl?: string;
@@ -105,6 +112,7 @@ export interface Pillar {
   description: string;
   aim: string;
   imageUrl: string;
+  imageFileId?: string;
   impactAreas?: string[];
   socialLinks?: PillarSocialLinks;
   joinNow?: PillarJoinNow;

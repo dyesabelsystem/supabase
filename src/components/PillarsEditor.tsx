@@ -5,6 +5,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppDialog } from '../contexts/AppDialogContext';
 import { convertToCORSFreeLink } from '../services/DriveService';
 import { CustomSelect } from './CustomSelect';
+import { getSessionToken } from '../utils/session';
+import { uploadImageToDrive } from '../utils/driveUpload';
 
 interface PillarsEditorProps {
   pillars: Pillar[];
@@ -282,21 +284,6 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
     setEditedPillars(updated);
   };
 
-  const readImageAsDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') {
-          reject(new Error('Image preview failed.'));
-          return;
-        }
-        resolve(reader.result);
-      };
-      reader.onerror = () => reject(new Error('Image preview failed.'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleImageUpload = async (pillarIndex: number, activityIndex: number | null, file: File) => {
     if (!file.type.startsWith('image/')) {
       await showAlert('Please select a valid image file.');
@@ -304,14 +291,29 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
     }
 
     try {
-      const previewUrl = await readImageAsDataUrl(file);
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(
+        file,
+        activityIndex === null ? 'pillars' : 'pillar-activities',
+        sessionToken
+      );
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
       if (activeActivityEditor && activityDraft) {
-        setActivityDraft({ ...activityDraft, imageUrl: previewUrl });
+        setActivityDraft({ ...activityDraft, imageUrl: upload.url, imageFileId: upload.fileId });
       } else {
-        updatePillar(pillarIndex, 'imageUrl', previewUrl);
+        const updated = [...editedPillars];
+        updated[pillarIndex] = {
+          ...updated[pillarIndex],
+          imageUrl: upload.url,
+          imageFileId: upload.fileId
+        };
+        setEditedPillars(updated);
       }
     } catch (error) {
-      await showAlert('Error reading image. Please try again.');
+      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 

@@ -2,6 +2,7 @@ import { Chapter, Pillar, User } from '../types';
 
 export const HOME_PATH = '/home';
 export const LOGIN_PATH = '/login';
+export const RESET_PASSWORD_PATH = '/reset-password';
 export const DONATE_PATH = '/donate';
 
 const DASHBOARD_BASE_PATH = '/dashboard';
@@ -12,6 +13,7 @@ export type ParsedAppRoute =
   | { type: 'root' }
   | { type: 'home' }
   | { type: 'login' }
+  | { type: 'reset-password' }
   | { type: 'donate' }
   | { type: 'dashboard'; roleSlug: string; usernameSlug: string }
   | { type: 'chapter'; chapterId: string; chapterSlug: string }
@@ -57,6 +59,7 @@ export const parseAppPath = (pathname: string): ParsedAppRoute => {
   if (normalizedPath === '/') return { type: 'root' };
   if (normalizedPath === HOME_PATH) return { type: 'home' };
   if (normalizedPath === LOGIN_PATH) return { type: 'login' };
+  if (normalizedPath === RESET_PASSWORD_PATH) return { type: 'reset-password' };
   if (normalizedPath === DONATE_PATH) return { type: 'donate' };
 
   const dashboardMatch = normalizedPath.match(/^\/dashboard\/([^/]+)\/([^/]+)$/);

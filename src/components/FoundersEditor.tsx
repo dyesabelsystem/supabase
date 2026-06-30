@@ -6,6 +6,7 @@ import { useAppDialog } from '../contexts/AppDialogContext';
 import { ExecutiveOfficer, Founder } from '../types';
 import { DataService, convertToCORSFreeLink } from '../services/DriveService';
 import { getSessionToken } from '../utils/session';
+import { uploadImageToDrive } from '../utils/driveUpload';
 
 interface FoundersEditorProps {
   founders: Founder[];
@@ -291,22 +292,15 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
     }
 
     try {
-      const previewUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          if (typeof reader.result !== 'string') {
-            reject(new Error('Image preview failed.'));
-            return;
-          }
-          resolve(reader.result);
-        };
-        reader.onerror = () => reject(new Error('Image preview failed.'));
-        reader.readAsDataURL(file);
-      });
-
-      onUploaded(previewUrl);
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(file, 'profiles', sessionToken);
+      if (!upload.success || !upload.url) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+      onUploaded(upload.url);
     } catch (error) {
-      await showAlert(error instanceof Error ? error.message : 'Error reading image.');
+      await showAlert(error instanceof Error ? error.message : 'Error uploading image to Google Drive.');
     }
   };
 

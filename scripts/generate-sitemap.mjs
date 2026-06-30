@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { loadEnv } from 'vite';
 
+const viteEnv = loadEnv(process.env.NODE_ENV || 'production', process.cwd(), '');
 const SITE_ORIGIN = process.env.SITE_ORIGIN || 'https://www.dyesabelph.org';
-const MAIN_API_URL = process.env.VITE_MAIN_API_URL || process.env.MAIN_API_URL || '';
+const SUPABASE_URL = viteEnv.VITE_SUPABASE_URL || viteEnv.SUPABASE_URL || 'https://rtmpjojqzfrggmmlseam.supabase.co';
+const SUPABASE_KEY = viteEnv.VITE_SUPABASE_PUBLISHABLE_KEY || viteEnv.SUPABASE_PUBLISHABLE_KEY || '';
 const OUTPUT_PATH = path.resolve(process.cwd(), 'public', 'sitemap.xml');
 const FALLBACK_DATA_PATH = process.env.SITEMAP_FALLBACK_PATH || path.resolve(process.cwd(), 'scripts', 'sitemap-fallback.json');
 
@@ -41,33 +44,19 @@ const readFallbackData = async () => {
   }
 };
 
-const callMainApi = async (action) => {
-  if (!MAIN_API_URL) return null;
-
-  const payload = JSON.stringify({ action });
-  const attempts = [
-    { headers: { 'Content-Type': 'text/plain' } },
-    { headers: {} }
-  ];
-
-  for (const attempt of attempts) {
-    try {
-      const response = await fetch(MAIN_API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: attempt.headers,
-        body: payload
-      });
-
-      if (!response.ok) continue;
-      const result = await response.json();
-      if (result && result.success !== false) return result;
-    } catch (error) {
-      // Try next request mode.
-    }
+const callSupabase = async (resource) => {
+  if (!SUPABASE_KEY) return null;
+  try {
+    const response = await fetch(`${SUPABASE_URL}/rest/v1/${resource}`, {
+      headers: {
+        apikey: SUPABASE_KEY,
+        Authorization: `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    return response.ok ? response.json() : null;
+  } catch {
+    return null;
   }
-
-  return null;
 };
 
 const buildStaticUrls = () => [
@@ -130,19 +119,15 @@ const buildSitemapXml = (entries) => {
 const generate = async () => {
   const staticEntries = buildStaticUrls();
   const [chaptersResult, pillarsResult, fallbackData] = await Promise.all([
-    callMainApi('listChapters'),
-    callMainApi('listPillars'),
+    callSupabase('chapters?select=data&order=sort_order.asc'),
+    callSupabase('site_content?content_key=eq.pillars&select=data'),
     readFallbackData()
   ]);
 
-  const chapters = [
-    ...(Array.isArray(chaptersResult?.chapters) ? chaptersResult.chapters : []),
-    ...(fallbackData.chapters || [])
-  ];
-  const pillars = [
-    ...(Array.isArray(pillarsResult?.pillars) ? pillarsResult.pillars : []),
-    ...(fallbackData.pillars || [])
-  ];
+  const apiChapters = Array.isArray(chaptersResult) ? chaptersResult.map((row) => row.data) : [];
+  const apiPillars = Array.isArray(pillarsResult?.[0]?.data) ? pillarsResult[0].data : [];
+  const chapters = apiChapters.length ? apiChapters : (fallbackData.chapters || []);
+  const pillars = apiPillars.length ? apiPillars : (fallbackData.pillars || []);
 
   const chapterEntries = buildChapterUrls(chapters);
   const pillarEntries = buildPillarUrls(pillars);
@@ -151,7 +136,7 @@ const generate = async () => {
   const xml = buildSitemapXml(allEntries);
   await fs.writeFile(OUTPUT_PATH, xml, 'utf8');
 
-  const hasApiData = Array.isArray(chaptersResult?.chapters) || Array.isArray(pillarsResult?.pillars);
+  const hasApiData = Array.isArray(chaptersResult) || Array.isArray(pillarsResult?.[0]?.data);
   const hasFallbackData = fallbackData.chapters.length > 0 || fallbackData.pillars.length > 0;
   const sourceLabel = hasApiData && hasFallbackData
     ? 'api+fallback'

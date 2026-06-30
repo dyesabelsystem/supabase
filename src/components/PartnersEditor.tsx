@@ -2,11 +2,14 @@ import React, { useEffect, useRef, useState } from 'react';
 import { X, Save, Plus, Trash2, Upload, Users, Building2, Globe2, Flag, FolderPlus } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppDialog } from '../contexts/AppDialogContext';
+import { getSessionToken } from '../utils/session';
+import { uploadImageToDrive } from '../utils/driveUpload';
 
 interface Partner {
   id: string;
   name: string;
   logo: string;
+  logoFileId?: string;
 }
 
 interface PartnerCategory {
@@ -121,13 +124,26 @@ export const PartnersEditor: React.FC<PartnersEditorProps> = ({ categories, onSa
     setEditedCategories(updated);
   };
 
-  const handleImageUpload = (categoryIndex: number, partnerIndex: number, file: File) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const logo = reader.result as string;
-      updatePartner(categoryIndex, partnerIndex, 'logo', logo);
-    };
-    reader.readAsDataURL(file);
+  const handleImageUpload = async (categoryIndex: number, partnerIndex: number, file: File) => {
+    try {
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(file, 'partners', sessionToken);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+      const updated = [...editedCategories];
+      const partners = [...updated[categoryIndex].partners];
+      partners[partnerIndex] = {
+        ...partners[partnerIndex],
+        logo: upload.url,
+        logoFileId: upload.fileId
+      };
+      updated[categoryIndex] = { ...updated[categoryIndex], partners };
+      setEditedCategories(updated);
+    } catch (error) {
+      await showAlert(error instanceof Error ? error.message : 'Error uploading image to Google Drive.');
+    }
   };
 
   const handleSave = async () => {

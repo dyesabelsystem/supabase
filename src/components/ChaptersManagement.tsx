@@ -9,6 +9,7 @@ import { DataService, AuthService, convertToCORSFreeLink, getImageDebugInfo } fr
 import { useAppDialog } from '../contexts/AppDialogContext';
 import { Chapter, ChapterActivity, User } from '../types';
 import { getSessionToken, getSessionUser } from '../utils/session';
+import { uploadImageToDrive } from '../utils/driveUpload';
 import { CustomSelect, CustomSelectOption } from './CustomSelect';
 import { SkeletonBlock, SkeletonCircle } from './Skeleton';
 
@@ -285,21 +286,6 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     return `${slug}_chapter_${year}-${uniqueCode}`;
   };
 
-  const readImageFileAsDataUrl_ = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') {
-          reject(new Error('Image preview failed.'));
-          return;
-        }
-        resolve(reader.result);
-      };
-      reader.onerror = () => reject(new Error('Image preview failed.'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleSaveChapter = async () => {
     if (isSavingChapter) return;
 
@@ -352,13 +338,31 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
     setIsUploadingLogo(true);
     try {
-      const logoPreview = await readImageFileAsDataUrl_(file);
+      const token = getSessionToken();
+      if (!token) {
+        await showAlert('Session expired. Please log in again.');
+        return;
+      }
 
-      setChapterFormData(prev => ({ ...prev, logo: logoPreview }));
+      const upload = await uploadImageToDrive(file, 'chapter-logo', token);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+
+      setChapterFormData(prev => ({
+        ...prev,
+        logo: upload.url,
+        logoUrl: upload.url,
+        logoFileId: upload.fileId
+      }));
     } catch (error) {
-      await showAlert('Error reading logo image');
+      await showAlert(
+        'Error uploading logo to Google Drive: ' +
+        (error instanceof Error ? error.message : String(error))
+      );
     } finally {
       setIsUploadingLogo(false);
+      e.target.value = '';
     }
   };
 
@@ -374,14 +378,23 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     }
 
     try {
-      const imagePreview = await readImageFileAsDataUrl_(file);
+      const token = getSessionToken();
+      if (!token) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(file, `chapter-${field}`, token);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+      const fileIdField = field === 'image' ? 'imageFileId' : 'headImageFileId';
       setChapterFormData((prev) => ({
         ...prev,
-        [field]: imagePreview,
-        ...(field === 'image' ? { imageUrl: imagePreview } : {})
+        [field]: upload.url,
+        [fileIdField]: upload.fileId,
+        ...(field === 'image' ? { imageUrl: upload.url } : {})
       }));
     } catch (error) {
-      await showAlert('Error reading image file.');
+      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      e.target.value = '';
     }
   };
 
@@ -543,10 +556,19 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     if (!chapterActivityDraft) return;
 
     try {
-      const imagePreview = await readImageFileAsDataUrl_(file);
-      setChapterActivityDraft({ ...chapterActivityDraft, imageUrl: imagePreview });
+      const token = getSessionToken();
+      if (!token) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(file, 'chapter-activity', token);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+      setChapterActivityDraft({
+        ...chapterActivityDraft,
+        imageUrl: upload.url,
+        imageFileId: upload.fileId
+      });
     } catch (error) {
-      await showAlert('Error reading activity image file.');
+      await showAlert('Error uploading activity image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 

@@ -5,6 +5,7 @@ import { useAppDialog } from '../contexts/AppDialogContext';
 import { DataService, convertToCORSFreeLink } from '../services/DriveService';
 import { Chapter } from '../types';
 import { getSessionToken } from '../utils/session';
+import { uploadImageToDrive } from '../utils/driveUpload';
 
 interface ChapterEditorProps {
   onBack: () => void;
@@ -35,7 +36,9 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     
     // Images
     imageUrl: chapter?.image || '', // Cover Image
+    imageFileId: chapter?.imageFileId || '',
     logoUrl: chapter?.logo || chapter?.logoUrl || '',   // Chapter Logo
+    logoFileId: chapter?.logoFileId || '',
 
     // Contact Info
     email: chapter?.email || '',
@@ -50,6 +53,7 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     headRole: chapter?.headRole || 'Chapter President',
     headQuote: chapter?.headQuote || '',
     headImageUrl: chapter?.headImageUrl || '',
+    headImageFileId: chapter?.headImageFileId || '',
 
     // CTA Section
     joinCtaDescription: chapter?.joinCtaDescription || 'Become a volunteer and make a direct impact in our community.',
@@ -126,7 +130,11 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
         description: chapterData.description,
         location: chapterData.location,
         image: chapterData.imageUrl,
+        imageUrl: chapterData.imageUrl,
+        imageFileId: chapterData.imageFileId,
         logo: chapterData.logoUrl, // ✅ Ensure this is sending the URL, not empty string
+        logoUrl: chapterData.logoUrl,
+        logoFileId: chapterData.logoFileId,
         email: chapterData.email,
         phone: chapterData.phone,
         facebook: chapterData.facebook,
@@ -138,6 +146,7 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
         headRole: chapterData.headRole,
         headQuote: chapterData.headQuote,
         headImageUrl: chapterData.headImageUrl,
+        headImageFileId: chapterData.headImageFileId,
         joinCtaDescription: chapterData.joinCtaDescription,
         joinUrl: chapterData.joinUrl,
         activities: chapterData.activities
@@ -159,22 +168,6 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     }
   };
 
-  // Generalized Image Upload Handler
-  const fileToDataUrl = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        if (typeof reader.result !== 'string') {
-          reject(new Error('Image preview failed.'));
-          return;
-        }
-        resolve(reader.result);
-      };
-      reader.onerror = () => reject(new Error('Image preview failed.'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleUpload = async (file: File, field: string) => {
     if (!file.type.startsWith('image/')) {
       await showAlert('Please select a valid image file.');
@@ -182,10 +175,29 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     }
 
     try {
-      const previewUrl = await fileToDataUrl(file);
-      setChapterData(prev => ({ ...prev, [field]: previewUrl }));
+      const sessionToken = getSessionToken();
+      if (!sessionToken) {
+        await showAlert('Session expired. Please log in again.');
+        return;
+      }
+
+      const upload = await uploadImageToDrive(file, `chapter-${field}`, sessionToken);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+
+      const fileIdField = field === 'logoUrl'
+        ? 'logoFileId'
+        : field === 'headImageUrl'
+          ? 'headImageFileId'
+          : 'imageFileId';
+      setChapterData(prev => ({
+        ...prev,
+        [field]: upload.url,
+        [fileIdField]: upload.fileId
+      }));
     } catch (error) {
-      await showAlert('Error reading image.');
+      await showAlert('Error uploading image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 
@@ -202,10 +214,21 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     }
 
     try {
-      const previewUrl = await fileToDataUrl(file);
-      handleActivityChange(index, 'imageUrl', previewUrl);
+      const sessionToken = getSessionToken();
+      if (!sessionToken) throw new Error('Session expired. Please log in again.');
+      const upload = await uploadImageToDrive(file, 'chapter-activity', sessionToken);
+      if (!upload.success || !upload.url || !upload.fileId) {
+        throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
+      }
+      const newActivities = [...chapterData.activities];
+      newActivities[index] = {
+        ...newActivities[index],
+        imageUrl: upload.url,
+        imageFileId: upload.fileId
+      };
+      setChapterData({ ...chapterData, activities: newActivities });
     } catch (error) {
-      await showAlert('Error reading activity image.');
+      await showAlert('Error uploading activity image to Google Drive: ' + (error instanceof Error ? error.message : String(error)));
     }
   };
 

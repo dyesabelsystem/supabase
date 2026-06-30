@@ -64,8 +64,8 @@ const isBackgroundSyncCandidate = (request: Request, url: URL) => {
   // Exclude uploads to avoid large blob retries in background sync
   if (url.pathname.toLowerCase().includes('upload')) return false;
   
-  // Target Google Apps Script URLs for background sync
-  if (url.origin === 'https://script.google.com' || url.origin === 'https://script.googleusercontent.com') {
+  // Supabase writes are safe to queue except file uploads.
+  if (url.origin === 'https://rtmpjojqzfrggmmlseam.supabase.co') {
     return true;
   }
   return false;
@@ -102,7 +102,7 @@ registerRoute(
   }
 );
 
-// Strategy for Background Sync (POST/PUT requests to GAS)
+// Strategy for Background Sync (Supabase writes)
 registerRoute(
   ({ request, url }) => isBackgroundSyncCandidate(request, url),
   new NetworkOnly({
@@ -110,11 +110,11 @@ registerRoute(
   })
 );
 
-// Strategy for GAS API Reads (GET)
+// Strategy for Supabase API Reads (GET)
 registerRoute(
   ({ request, url }) =>
     request.method === 'GET' &&
-    (url.origin === 'https://script.google.com' || url.origin === 'https://script.googleusercontent.com'),
+    url.origin === 'https://rtmpjojqzfrggmmlseam.supabase.co',
   new NetworkFirst({
     cacheName: CACHE_NAMES.gasApi,
     networkTimeoutSeconds: 5,

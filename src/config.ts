@@ -4,10 +4,9 @@ const readEnv = (key: string): string => {
 };
 
 export const APP_CONFIG = {
-  mainApiUrl: readEnv('VITE_MAIN_API_URL'),
-  usersApiUrl: readEnv('VITE_USERS_API_URL'),
-  donationsApiUrl: readEnv('VITE_DONATIONS_API_URL'),
-  chatbotApiUrl: readEnv('VITE_CHATBOT_API_URL') || 'https://script.google.com/macros/s/AKfycbyTkvG3-CXNy0hXXHpzHaMQlml_tNY_NsWw2mtTFl0YlRMQpNoRuzxzhYhuBWDOmQrFng/exec',
+  supabaseUrl: readEnv('VITE_SUPABASE_URL'),
+  supabasePublishableKey: readEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
+  driveImageApiUrl: readEnv('VITE_DRIVE_IMAGE_API_URL'),
   organizationName: readEnv('VITE_ORGANIZATION_NAME') || 'DYESABEL PH Inc.',
   supportEmail: readEnv('VITE_SUPPORT_EMAIL') || 'projectdyesabel@gmail.com',
   supportPhone: readEnv('VITE_SUPPORT_PHONE'),

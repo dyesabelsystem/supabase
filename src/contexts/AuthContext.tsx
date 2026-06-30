@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { AuthService } from '../services/DriveService';
+import { supabase } from '../services/supabaseClient';
 import { clearPersistedAppState } from '../utils/appState';
 import {
   AUTH_INVALID_EVENT,
@@ -19,6 +20,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (username: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: () => Promise<{ success: boolean; error?: string }>;
   logout: () => void;
   checkPermission: (requiredRole: UserRole, chapterId?: string) => boolean;
   updateCurrentUser: (nextUser: User) => void;
@@ -27,6 +29,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const CLIENT_IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+export const AUTH_REDIRECT_MESSAGE_KEY = 'dyesabel:auth-redirect-message';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => getSessionUser());
@@ -47,18 +50,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const checkSession = async () => {
       const token = getSessionToken();
-      if (token) {
+      const isPasswordRecoveryPage = window.location.pathname === '/reset-password';
+
+      if (isPasswordRecoveryPage) {
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: sessionData } = await supabase.auth.getSession();
+      const activeToken = token || sessionData.session?.access_token || null;
+
+      if (activeToken) {
         try {
-          const result = await AuthService.validateSession(token);
+          const result = await AuthService.validateSession(activeToken);
           if (result.success && result.user) {
             setUser(result.user);
-            saveSession(token, result.user);
+            saveSession(activeToken, result.user);
             markSessionActivity();
           } else {
-            logout();
+            if (!token && sessionData.session) {
+              window.sessionStorage.setItem(
+                AUTH_REDIRECT_MESSAGE_KEY,
+                'No Dyesabel account is associated with that Google account.'
+              );
+            }
+            setUser(null);
+            clearSession();
+            await supabase.auth.signOut();
           }
         } catch {
-          logout();
+          if (!token && sessionData.session) {
+            window.sessionStorage.setItem(
+              AUTH_REDIRECT_MESSAGE_KEY,
+              'No Dyesabel account is associated with that Google account.'
+            );
+          }
+          setUser(null);
+          clearSession();
+          await supabase.auth.signOut();
         }
       }
       setIsLoading(false);
@@ -88,6 +117,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
       return { success: false, error: userFriendlyError };
     }
+  };
+
+  const loginWithGoogle = async (): Promise<{ success: boolean; error?: string }> => {
+    window.sessionStorage.removeItem(AUTH_REDIRECT_MESSAGE_KEY);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${window.location.origin}/login`,
+        queryParams: {
+          prompt: 'select_account'
+        }
+      }
+    });
+    return error
+      ? { success: false, error: error.message }
+      : { success: true };
   };
 
   const updateCurrentUser = (nextUser: User) => {
@@ -163,6 +208,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAuthenticated: !!user,
     isLoading,
     login,
+    loginWithGoogle,
     logout,
     checkPermission,
     updateCurrentUser,

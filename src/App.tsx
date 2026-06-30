@@ -37,6 +37,7 @@ import {
 } from './utils/routes';
 
 const LoginModal = lazy(() => import('./components/LoginModal').then((module) => ({ default: module.LoginModal })));
+const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 const ChapterEditor = lazy(() => import('./components/ChapterEditor').then((module) => ({ default: module.ChapterEditor })));
 const LandingPageEditor = lazy(() => import('./components/LandingPageEditor').then((module) => ({ default: module.LandingPageEditor })));
@@ -266,7 +267,7 @@ function AppContent() {
       return metadata;
     }
 
-    if (routeType === 'dashboard' || routeType === 'login') {
+    if (routeType === 'dashboard' || routeType === 'login' || routeType === 'reset-password') {
       metadata.robots = 'noindex,nofollow';
       return metadata;
     }
@@ -568,6 +569,8 @@ function AppContent() {
   useEffect(() => {
     if (isAuthLoading) return;
 
+    if (currentRoute.type === 'reset-password') return;
+
     if (currentRoute.type === 'root' || currentRoute.type === 'unknown') {
       navigateTo(HOME_PATH, { replace: true });
       return;
@@ -828,6 +831,14 @@ function AppContent() {
       }
     }
   };
+
+  if (currentRoute.type === 'reset-password') {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <ResetPasswordPage />
+      </Suspense>
+    );
+  }
 
   return (
     <div className="min-h-screen relative text-ocean-deep dark:text-white transition-colors duration-500 overflow-x-hidden">
