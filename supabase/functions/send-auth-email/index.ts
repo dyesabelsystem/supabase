@@ -73,12 +73,20 @@ Deno.serve(async (request) => {
       await sendThroughGas(user.email || "", emailData);
     }
 
-    return new Response(null, { status: 200 });
+    return new Response(JSON.stringify({ success: true }), { 
+  status: 200,
+  headers: { "Content-Type": "application/json" }
+});
   } catch (error) {
     console.error("send-auth-email:", error);
     return new Response(
-      error instanceof Error ? error.message : "Authentication email delivery failed.",
-      { status: 500 },
-    );
+  JSON.stringify({ 
+    error: error instanceof Error ? error.message : "Authentication email delivery failed." 
+  }),
+  { 
+    status: 500,
+    headers: { "Content-Type": "application/json" }
+  },
+);
   }
 });
