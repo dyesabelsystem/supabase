@@ -28,25 +28,35 @@ Deno.serve(async (request) => {
     ].join("\n\n");
     let generated: any = null;
     let lastError = "Gemini request failed.";
-    for (const apiKey of apiKeys) {
-      const response = await fetch(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.2, maxOutputTokens: 700 },
-          }),
-        },
-      );
-      generated = await response.json();
-      if (response.ok) break;
-      lastError = generated?.error?.message || `Gemini request failed with ${response.status}.`;
-      if (![429, 500, 502, 503, 504].includes(response.status)) throw new Error(lastError);
-      generated = null;
+    for (const [index, apiKey] of apiKeys.entries()) {
+      try {
+        const response = await fetch(
+          "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: prompt }] }],
+              generationConfig: { temperature: 0.2, maxOutputTokens: 700 },
+            }),
+          },
+        );
+        const result = await response.json();
+        if (response.ok) {
+          generated = result;
+          break;
+        }
+
+        const message = result?.error?.message || `Gemini request failed with ${response.status}.`;
+        lastError = `Key ${index + 1} returned HTTP ${response.status}: ${message}`;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        lastError = `Key ${index + 1} could not reach Gemini: ${message}`;
+      }
     }
-    if (!generated) throw new Error(lastError);
+    if (!generated) {
+      throw new Error(`All ${apiKeys.length} configured Gemini API keys failed. ${lastError}`);
+    }
     const answer = generated?.candidates?.[0]?.content?.parts?.map((part: { text?: string }) => part.text || "").join("").trim();
     if (!answer) throw new Error("Gemini returned no answer.");
     return Response.json({ success: true, answer, source: "gemini", confidence: 0.75 }, { headers: cors });

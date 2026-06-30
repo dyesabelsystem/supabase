@@ -137,12 +137,12 @@ export const AuthService = {
     });
   },
 
-  updatePassword: async (sessionToken: string, newPassword: string, targetUsername?: string) => {
+  updatePassword: async (sessionToken: string, userId: string, newPassword: string) => {
     return sendUsersRequest({
       action: 'updatePassword',
       sessionToken,
-      newPassword,
-      targetUsername
+      userId,
+      newPassword
     });
   }
 };
@@ -249,6 +249,50 @@ export const DriveService = {
       action: 'listImages',
       sessionToken,
       customFolderId: folderId
+    });
+  },
+
+  getImage: async (fileId: string, sessionToken: string) => {
+    return sendRequest<{ file: any }>({
+      action: 'getImage',
+      sessionToken,
+      fileId
+    });
+  },
+
+  updateImage: async (
+    fileId: string,
+    changes: { fileName?: string; description?: string; makePublic?: boolean },
+    sessionToken: string
+  ) => {
+    return sendRequest<{ file: any }>({
+      action: 'updateImage',
+      sessionToken,
+      fileId,
+      ...changes
+    });
+  },
+
+  replaceImage: async (fileId: string, file: File, sessionToken: string) => {
+    if (file.size > 10 * 1024 * 1024) {
+      return { success: false, error: 'File too large (>10MB)' };
+    }
+    const base64 = await fileToBase64(file);
+    return sendRequest<{ fileId: string; fileUrl: string; thumbnailUrl: string }>({
+      action: 'replaceImage',
+      sessionToken,
+      fileId,
+      fileName: file.name,
+      fileType: file.type,
+      fileData: base64
+    });
+  },
+
+  restoreImage: async (fileId: string, sessionToken: string) => {
+    return sendRequest<{ file: any }>({
+      action: 'restoreImage',
+      sessionToken,
+      fileId
     });
   },
 
@@ -418,27 +462,33 @@ export const DataService = {
   },
 
   createPartnerCategory: async (category: any, sessionToken: string) => {
-    return sendRequest<{ category: any }>({
+    const result = await sendRequest<{ category: any }>({
       action: 'createPartnerCategory',
       sessionToken,
       category
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   updatePartnerCategory: async (category: any, sessionToken: string) => {
-    return sendRequest<{ category: any }>({
+    const result = await sendRequest<{ category: any }>({
       action: 'updatePartnerCategory',
       sessionToken,
       category
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   deletePartnerCategory: async (categoryId: string, sessionToken: string) => {
-    return sendRequest<{ category: any }>({
+    const result = await sendRequest<{ category: any }>({
       action: 'deletePartnerCategory',
       sessionToken,
       categoryId
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   getPartner: async (partnerId: string, categoryId?: string) => {
@@ -450,30 +500,36 @@ export const DataService = {
   },
 
   createPartner: async (categoryId: string, partner: any, sessionToken: string) => {
-    return sendRequest<{ partner: any; categoryId: string }>({
+    const result = await sendRequest<{ partner: any; categoryId: string }>({
       action: 'createPartner',
       sessionToken,
       categoryId,
       partner
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   updatePartner: async (categoryId: string, partner: any, sessionToken: string) => {
-    return sendRequest<{ partner: any; categoryId: string }>({
+    const result = await sendRequest<{ partner: any; categoryId: string }>({
       action: 'updatePartner',
       sessionToken,
       categoryId,
       partner
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   deletePartner: async (categoryId: string, partnerId: string, sessionToken: string) => {
-    return sendRequest<{ partner: any; categoryId: string }>({
+    const result = await sendRequest<{ partner: any; categoryId: string }>({
       action: 'deletePartner',
       sessionToken,
       categoryId,
       partnerId
     });
+    if (result.success) invalidateLocalCache(/^main:partners/);
+    return result;
   },
 
   saveFounders: async (founders: any, sessionToken: string) => {
@@ -506,27 +562,33 @@ export const DataService = {
   },
 
   createFounder: async (founder: any, sessionToken: string) => {
-    return sendRequest<{ founder: any }>({
+    const result = await sendRequest<{ founder: any }>({
       action: 'createFounder',
       sessionToken,
       founder
     });
+    if (result.success) invalidateLocalCache(/^main:founders/);
+    return result;
   },
 
   updateFounder: async (founder: any, sessionToken: string) => {
-    return sendRequest<{ founder: any }>({
+    const result = await sendRequest<{ founder: any }>({
       action: 'updateFounder',
       sessionToken,
       founder
     });
+    if (result.success) invalidateLocalCache(/^main:founders/);
+    return result;
   },
 
   deleteFounder: async (founderId: string, sessionToken: string) => {
-    return sendRequest<{ founder: any }>({
+    const result = await sendRequest<{ founder: any }>({
       action: 'deleteFounder',
       sessionToken,
       founderId
     });
+    if (result.success) invalidateLocalCache(/^main:founders/);
+    return result;
   },
 
   saveExecutiveOfficers: async (executiveOfficers: any, sessionToken: string) => {
@@ -583,11 +645,13 @@ export const DataService = {
   },
 
   saveStories: async (stories: any, sessionToken: string) => {
-    return sendRequest({
+    const result = await sendRequest({
       action: 'saveStories',
       sessionToken,
       stories
     });
+    if (result.success) invalidateLocalCache(/^main:stories/);
+    return result;
   },
 
   loadStories: async () => {
@@ -610,27 +674,33 @@ export const DataService = {
   },
 
   createStory: async (story: any, sessionToken: string) => {
-    return sendRequest<{ story: any }>({
+    const result = await sendRequest<{ story: any }>({
       action: 'createStory',
       sessionToken,
       story
     });
+    if (result.success) invalidateLocalCache(/^main:stories/);
+    return result;
   },
 
   updateStory: async (story: any, sessionToken: string) => {
-    return sendRequest<{ story: any }>({
+    const result = await sendRequest<{ story: any }>({
       action: 'updateStory',
       sessionToken,
       story
     });
+    if (result.success) invalidateLocalCache(/^main:stories/);
+    return result;
   },
 
   deleteStory: async (storyId: string, sessionToken: string) => {
-    return sendRequest<{ story: any }>({
+    const result = await sendRequest<{ story: any }>({
       action: 'deleteStory',
       sessionToken,
       storyId
     });
+    if (result.success) invalidateLocalCache(/^main:stories/);
+    return result;
   }
 };
 

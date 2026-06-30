@@ -5,7 +5,8 @@
  * It uses DriveService for all API calls, which includes CORS bypass and error handling.
  */
 
-import { DriveService, DataService } from '../services/DriveService';
+import { DriveService, DataService, extractDriveFileId } from '../services/DriveService';
+import { buildDescriptiveImageFileName } from './imageFileName';
 
 export interface UploadResult {
   success: boolean;
@@ -29,6 +30,7 @@ export async function uploadImageToDrive(
   oldFileId?: string
 ): Promise<UploadResult> {
   try {
+    const normalizedOldFileId = extractDriveFileId(oldFileId || '') || oldFileId;
     // Validate file type
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!validTypes.includes(file.type)) {
@@ -60,30 +62,25 @@ export async function uploadImageToDrive(
       };
     }
 
-    // If replacing an image, delete the old one first
-    if (oldFileId) {
-      try {
-        const deleteResult = await DriveService.deleteImage(oldFileId, sessionToken);
-        if (!deleteResult.success) {
-          console.error('[driveUpload] Previous image delete failed before replacement upload', {
-            oldFileId,
-            folder,
-            backendError: deleteResult.error
-          });
-          // Continue anyway - old image stays but new one will be uploaded
-        }
-      } catch (deleteError) {
-        console.error('[driveUpload] Previous image delete threw before replacement upload', {
-          oldFileId,
-          folder,
-          error: deleteError instanceof Error ? deleteError.message : String(deleteError)
-        });
-        // Continue with upload despite delete failure
+    // Use DriveService with CORS bypass and error handling
+    const descriptiveFile = new File(
+      [file],
+      buildDescriptiveImageFileName(file, folder),
+      { type: file.type, lastModified: file.lastModified }
+    );
+    const result = await DriveService.uploadImage(descriptiveFile, sessionToken);
+
+    if (result.success && result.fileId && normalizedOldFileId && normalizedOldFileId !== result.fileId) {
+      const deleteResult = await DriveService.deleteImage(normalizedOldFileId, sessionToken);
+      if (!deleteResult.success) {
+        // Keep the saved content pointing at the old image when replacement cannot complete.
+        await DriveService.deleteImage(result.fileId, sessionToken);
+        return {
+          success: false,
+          error: deleteResult.error || 'The new image uploaded, but the previous image could not be deleted.'
+        };
       }
     }
-
-    // Use DriveService with CORS bypass and error handling
-    const result = await DriveService.uploadImage(file, sessionToken);
 
     if (result.success) {
       return {

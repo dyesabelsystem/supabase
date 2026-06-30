@@ -284,7 +284,8 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
 
   const uploadProfileImage = async (
     file: File,
-    onUploaded: (value: string) => void
+    oldFileId: string | undefined,
+    onUploaded: (imageUrl: string, fileId: string) => void
   ) => {
     if (!file.type.startsWith('image/')) {
       await showAlert('Please select a valid image file.');
@@ -294,11 +295,11 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, 'profiles', sessionToken);
-      if (!upload.success || !upload.url) {
+      const upload = await uploadImageToDrive(file, 'profiles', sessionToken, oldFileId);
+      if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }
-      onUploaded(upload.url);
+      onUploaded(upload.url, upload.fileId);
     } catch (error) {
       await showAlert(error instanceof Error ? error.message : 'Error uploading image to Google Drive.');
     }
@@ -479,7 +480,11 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
                                 if (!file) return;
                                 void uploadProfileImage(
                                   file,
-                                  (imageUrl) => updateFounder(index, 'imageUrl', imageUrl)
+                                  founder.imageFileId || founder.imageUrl,
+                                  (imageUrl, fileId) => {
+                                    updateFounder(index, 'imageUrl', imageUrl);
+                                    updateFounder(index, 'imageFileId', fileId);
+                                  }
                                 );
                               }}
                               className="hidden"
@@ -596,7 +601,11 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
                                   if (!file) return;
                                   void uploadProfileImage(
                                     file,
-                                    (imageUrl) => updateExecutiveOfficer(index, 'imageUrl', imageUrl)
+                                    officer.imageFileId || officer.imageUrl,
+                                    (imageUrl, fileId) => {
+                                      updateExecutiveOfficer(index, 'imageUrl', imageUrl);
+                                      updateExecutiveOfficer(index, 'imageFileId', fileId);
+                                    }
                                   );
                                 }}
                                 className="hidden"

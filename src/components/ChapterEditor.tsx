@@ -181,7 +181,12 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
         return;
       }
 
-      const upload = await uploadImageToDrive(file, `chapter-${field}`, sessionToken);
+      const oldFileId = field === 'logoUrl'
+        ? chapterData.logoFileId || chapterData.logoUrl || chapterData.logo
+        : field === 'headImageUrl'
+          ? chapterData.headImageFileId || chapterData.headImageUrl
+          : chapterData.imageFileId || chapterData.imageUrl || chapterData.image;
+      const upload = await uploadImageToDrive(file, `chapter-${field}`, sessionToken, oldFileId);
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }
@@ -216,7 +221,12 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, 'chapter-activity', sessionToken);
+      const upload = await uploadImageToDrive(
+        file,
+        'chapter-activity',
+        sessionToken,
+        chapterData.activities[index]?.imageFileId || chapterData.activities[index]?.imageUrl
+      );
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }

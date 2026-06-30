@@ -7,9 +7,20 @@
  *
  * Script Property required for protected CRUD:
  *   DRIVE_CRUD_SECRET = a long random value (also configure it in Supabase)
+ * Script Property required for authentication email delivery:
+ *   AUTH_EMAIL_GAS_SECRET = a different long random value (also configure it in Supabase)
  */
 var DYESABEL_DRIVE_FOLDER_ID = '1Tyxxi0If1jysxtdpVUxoX7-fYaRJVsPD';
 var DYESABEL_CRUD_SECRET_PROPERTY = 'DRIVE_CRUD_SECRET';
+var DYESABEL_EMAIL_SECRET_PROPERTY = 'AUTH_EMAIL_GAS_SECRET';
+var DYESABEL_ORGANIZATION_NAME = 'DYESABEL PH Inc.';
+var DYESABEL_LEGAL_NAME = 'Developing the Youth with Environmentally Sustainable Advocacies Building and Empowering Lives Philippines, Inc.';
+var DYESABEL_SEC_REGISTRATION_ID = '2023040094046-98';
+var DYESABEL_SITE_URL = 'https://www.dyesabelph.org';
+var DYESABEL_LOGO_URL = DYESABEL_SITE_URL + '/icons/apple-touch-icon.png';
+var DYESABEL_SUPPORT_EMAIL = 'projectdyesabel@gmail.com';
+var DYESABEL_FACEBOOK_URL = 'https://www.facebook.com/dyesabel.ph';
+var DYESABEL_INSTAGRAM_URL = 'https://www.instagram.com/dyesabel.ph/';
 var DYESABEL_DEFAULT_LIST_LIMIT = 50;
 var DYESABEL_MAX_LIST_LIMIT = 200;
 var DYESABEL_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -24,6 +35,16 @@ function doPost(e) {
   try {
     var data = dyesabelParseDriveRequest_(e);
     var action = String(data.action || 'upload').toLowerCase();
+
+    if (action === 'sendauthemail') {
+      dyesabelRequireEmailSecret_(data.secret);
+      return dyesabelJson_(dyesabelSendAuthEmail_(data));
+    }
+    if (action === 'sendapplicationemail') {
+      dyesabelRequireEmailSecret_(data.secret);
+      return dyesabelJson_(dyesabelSendApplicationEmail_(data));
+    }
+
     dyesabelRequireCrudSecret_(data.secret);
 
     if (action === 'upload' || action === 'uploadimage') return dyesabelJson_(dyesabelUploadImage_(data));
@@ -40,6 +61,264 @@ function doPost(e) {
   } catch (error) {
     return dyesabelJson_({ success: false, error: String(error && error.message ? error.message : error) });
   }
+}
+
+/**
+ * Sends an authentication email forwarded by the verified Supabase Send Email
+ * Hook. Never call this action directly from a browser.
+ */
+function dyesabelSendAuthEmail_(data) {
+  var recipient = String(data.to || '').trim().toLowerCase();
+  var emailData = data.emailData || {};
+  var actionType = String(emailData.email_action_type || '').toLowerCase();
+  var token = String(emailData.token || '').trim();
+  var tokenHash = String(emailData.token_hash || '').trim();
+  var redirectTo = dyesabelAllowedRedirect_(emailData.redirect_to);
+
+  if (!dyesabelIsEmail_(recipient)) throw new Error('A valid recipient email is required.');
+  if (!actionType) throw new Error('Missing authentication email action type.');
+
+  var referenceId = dyesabelEmailReferenceId_(actionType);
+  var content = dyesabelAuthEmailContent_(actionType, token, tokenHash, redirectTo);
+  var htmlBody = dyesabelEmailLayout_(content, referenceId);
+  var plainBody = dyesabelPlainTextEmail_(content, referenceId);
+
+  MailApp.sendEmail({
+    to: recipient,
+    subject: content.subject,
+    body: plainBody,
+    htmlBody: htmlBody,
+    name: DYESABEL_ORGANIZATION_NAME,
+    replyTo: DYESABEL_SUPPORT_EMAIL
+  });
+
+  return { success: true, action: 'sendAuthEmail', referenceId: referenceId };
+}
+
+/**
+ * Sends a pre-rendered application notification prepared by the protected
+ * application-email Edge Function. Content remains plain text and is escaped
+ * by the shared layout, so callers cannot inject markup.
+ */
+function dyesabelSendApplicationEmail_(data) {
+  var recipient = String(data.to || '').trim().toLowerCase();
+  var content = data.content || {};
+  var template = String(data.template || 'notification').toLowerCase();
+  if (!dyesabelIsEmail_(recipient)) throw new Error('A valid recipient email is required.');
+  if (!String(content.subject || '').trim()) throw new Error('Email subject is required.');
+  if (!String(content.title || '').trim()) throw new Error('Email title is required.');
+
+  var referenceId = dyesabelEmailReferenceId_(template);
+  var normalized = {
+    subject: String(content.subject).slice(0, 140),
+    eyebrow: String(content.eyebrow || 'DYESABEL PH UPDATE').slice(0, 80),
+    title: String(content.title).slice(0, 160),
+    message: String(content.message || '').slice(0, 4000),
+    detail: String(content.detail || '').slice(0, 4000),
+    buttonLabel: String(content.buttonLabel || '').slice(0, 50),
+    actionUrl: dyesabelSafePublicUrl_(content.actionUrl),
+    token: '',
+    warning: String(content.warning || '').slice(0, 2000),
+    disclaimer: String(content.disclaimer || 'This automated message was sent because of an interaction with the official DYESABEL PH website.').slice(0, 1000),
+    details: dyesabelNormalizeEmailDetails_(content.details)
+  };
+
+  MailApp.sendEmail({
+    to: recipient,
+    subject: normalized.subject,
+    body: dyesabelPlainTextEmail_(normalized, referenceId),
+    htmlBody: dyesabelEmailLayout_(normalized, referenceId),
+    name: DYESABEL_ORGANIZATION_NAME,
+    replyTo: String(data.replyTo || DYESABEL_SUPPORT_EMAIL)
+  });
+
+  return { success: true, action: 'sendApplicationEmail', template: template, referenceId: referenceId };
+}
+
+function dyesabelAuthEmailContent_(actionType, token, tokenHash, redirectTo) {
+  var verifyType = actionType === 'magiclink' ? 'magiclink' : actionType;
+  var actionUrl = tokenHash
+    ? 'https://rtmpjojqzfrggmmlseam.supabase.co/auth/v1/verify?token=' +
+      encodeURIComponent(tokenHash) + '&type=' + encodeURIComponent(verifyType) +
+      '&redirect_to=' + encodeURIComponent(redirectTo)
+    : '';
+
+  if (actionType === 'recovery') {
+    return {
+      subject: 'Reset your DYESABEL PH password',
+      eyebrow: 'ACCOUNT SECURITY',
+      title: 'Reset your password',
+      message: 'We received a request to reset the password for your DYESABEL PH account.',
+      detail: 'Use the secure button below to create a new password. This link is time-limited and can only be used once.',
+      buttonLabel: 'Reset password',
+      actionUrl: actionUrl,
+      token: token,
+      warning: 'If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.'
+    };
+  }
+
+  if (actionType === 'password_changed_notification') {
+    return {
+      subject: 'Your DYESABEL PH password was changed',
+      eyebrow: 'SECURITY NOTICE',
+      title: 'Password changed',
+      message: 'The password for your DYESABEL PH account was changed successfully.',
+      detail: 'No further action is needed if you made this change.',
+      buttonLabel: '',
+      actionUrl: '',
+      token: '',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    };
+  }
+
+  var labels = {
+    signup: ['Verify your DYESABEL PH email', 'Verify your email address'],
+    invite: ['You are invited to DYESABEL PH', 'Accept your invitation'],
+    magiclink: ['Your DYESABEL PH sign-in code', 'Sign in securely'],
+    email: ['Your DYESABEL PH verification code', 'Verify your identity'],
+    reauthentication: ['Confirm your DYESABEL PH identity', 'Confirm your identity'],
+    email_change: ['Confirm your DYESABEL PH email change', 'Confirm your new email']
+  };
+  var label = labels[actionType] || ['DYESABEL PH account verification', 'Verify your account'];
+  return {
+    subject: label[0],
+    eyebrow: 'EMAIL VERIFICATION',
+    title: label[1],
+    message: 'Use this one-time verification code to continue with your DYESABEL PH account.',
+    detail: 'For your security, this code expires shortly and should never be shared with anyone.',
+    buttonLabel: actionUrl ? 'Continue securely' : '',
+    actionUrl: actionUrl,
+    token: token,
+    warning: 'If you did not request this email, you can safely ignore it. Do not share this code with anyone.'
+  };
+}
+
+function dyesabelEmailLayout_(content, referenceId) {
+  var button = content.actionUrl && content.buttonLabel
+    ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:28px 0 8px">' +
+      '<a href="' + dyesabelEscapeHtml_(content.actionUrl) + '" style="display:inline-block;background:#2563eb;color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:14px 28px;border-radius:10px">' +
+      dyesabelEscapeHtml_(content.buttonLabel) + '</a></td></tr></table>'
+    : '';
+  var code = content.token
+    ? '<div style="margin:26px 0 4px;padding:18px 12px;border:1px solid #a5f3fc;border-radius:12px;background:#ecfeff;text-align:center">' +
+      '<div style="color:#0e7490;font-size:11px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase">One-time code</div>' +
+      '<div style="padding-top:7px;color:#051923;font-family:Consolas,Monaco,monospace;font-size:32px;font-weight:800;letter-spacing:8px">' +
+      dyesabelEscapeHtml_(content.token) + '</div></div>'
+    : '';
+  var details = content.details && content.details.length
+    ? '<div style="margin-top:24px;border:1px solid #dbe8ec;border-radius:12px;overflow:hidden">' +
+      content.details.map(function (item, index) {
+        return '<div style="padding:11px 14px;' + (index ? 'border-top:1px solid #dbe8ec;' : '') +
+          'background:' + (index % 2 ? '#ffffff' : '#f7fafb') + '">' +
+          '<span style="display:inline-block;min-width:130px;color:#647b88;font-size:12px;font-weight:700">' +
+          dyesabelEscapeHtml_(item.label) + '</span>' +
+          '<span style="color:#243746;font-size:13px">' + dyesabelEscapeHtml_(item.value) + '</span></div>';
+      }).join('') + '</div>'
+    : '';
+  var warning = content.warning
+    ? '<div style="margin-top:28px;padding:16px 18px;border-left:4px solid #22d3ee;background:#f4fbfc;color:#4b6473;font-size:13px;line-height:1.55">' +
+      dyesabelEscapeHtml_(content.warning) + '</div>'
+    : '';
+  var disclaimer = content.disclaimer ||
+    'This is an automated account-security email intended only for its recipient. Please do not reply with passwords, verification codes, or other sensitive information.';
+
+  return '<!doctype html><html><body style="margin:0;padding:0;background:#eef6f8;font-family:Arial,Helvetica,sans-serif;color:#243746">' +
+    '<div style="display:none;max-height:0;overflow:hidden">' + dyesabelEscapeHtml_(content.message) + '</div>' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#eef6f8"><tr><td align="center" style="padding:28px 12px">' +
+    '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:620px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 10px 35px rgba(5,25,35,.10)">' +
+    '<tr><td style="padding:28px 34px;background:#051923;border-bottom:4px solid #22d3ee">' +
+    '<table role="presentation" cellspacing="0" cellpadding="0"><tr>' +
+    '<td style="padding-right:14px"><img src="' + DYESABEL_LOGO_URL + '" width="64" height="64" alt="DYESABEL PH Inc. logo" style="display:block;border-radius:50%;background:#ffffff"></td>' +
+    '<td><div style="color:#22d3ee;font-size:11px;font-weight:700;letter-spacing:1.5px">ENVIRONMENT • YOUTH • COMMUNITY</div>' +
+    '<div style="padding-top:5px;color:#ffffff;font-size:23px;font-weight:800">' + DYESABEL_ORGANIZATION_NAME + '</div></td>' +
+    '</tr></table></td></tr>' +
+    '<tr><td style="padding:38px 38px 30px">' +
+    '<div style="color:#2563eb;font-size:11px;font-weight:800;letter-spacing:1.6px">' + dyesabelEscapeHtml_(content.eyebrow) + '</div>' +
+    '<h1 style="margin:9px 0 16px;color:#051923;font-size:28px;line-height:1.25">' + dyesabelEscapeHtml_(content.title) + '</h1>' +
+    '<p style="margin:0 0 12px;font-size:16px;line-height:1.65">' + dyesabelEscapeHtml_(content.message) + '</p>' +
+    '<p style="margin:0;color:#5b7080;font-size:14px;line-height:1.65">' + dyesabelEscapeHtml_(content.detail) + '</p>' +
+    code + details + button + warning +
+    '</td></tr>' +
+    '<tr><td style="padding:26px 34px;background:#f7fafb;border-top:1px solid #dbe8ec">' +
+    '<div style="color:#8a9ba5;font-size:10px;line-height:1.5">Email reference ID: <strong>' +
+    dyesabelEscapeHtml_(referenceId) + '</strong></div>' +
+    '<div style="padding-top:10px;color:#8a9ba5;font-size:10px;line-height:1.5">' +
+    dyesabelEscapeHtml_(disclaimer) + '</div>' +
+    '<div style="padding-top:18px;color:#051923;font-size:13px;font-weight:700">Connect with DYESABEL PH</div>' +
+    '<div style="padding-top:9px;font-size:13px;line-height:1.8">' +
+    '<a href="' + DYESABEL_FACEBOOK_URL + '" style="color:#2563eb;text-decoration:none">Facebook</a>&nbsp;&nbsp;•&nbsp;&nbsp;' +
+    '<a href="' + DYESABEL_INSTAGRAM_URL + '" style="color:#2563eb;text-decoration:none">Instagram</a>&nbsp;&nbsp;•&nbsp;&nbsp;' +
+    '<a href="mailto:' + DYESABEL_SUPPORT_EMAIL + '" style="color:#2563eb;text-decoration:none">' + DYESABEL_SUPPORT_EMAIL + '</a></div>' +
+    '<div style="padding-top:18px;color:#647b88;font-size:11px;line-height:1.6">' +
+    '<strong>About DYESABEL PH Inc.</strong><br>' + DYESABEL_LEGAL_NAME + '<br>' +
+    'SEC Registration ID: ' + DYESABEL_SEC_REGISTRATION_ID + '<br>Davao, Philippines</div>' +
+    '</td></tr></table></td></tr></table></body></html>';
+}
+
+function dyesabelPlainTextEmail_(content, referenceId) {
+  var lines = [
+    DYESABEL_ORGANIZATION_NAME,
+    content.title,
+    '',
+    content.message,
+    content.detail
+  ];
+  if (content.token) lines.push('', 'One-time code: ' + content.token);
+  if (content.details && content.details.length) {
+    lines.push('');
+    content.details.forEach(function (item) {
+      lines.push(item.label + ': ' + item.value);
+    });
+  }
+  if (content.actionUrl) lines.push('', content.buttonLabel + ': ' + content.actionUrl);
+  lines.push('', content.warning, '', 'Contact: ' + DYESABEL_SUPPORT_EMAIL);
+  lines.push(DYESABEL_LEGAL_NAME);
+  lines.push('SEC Registration ID: ' + DYESABEL_SEC_REGISTRATION_ID);
+  lines.push('Email reference ID: ' + referenceId);
+  return lines.join('\n');
+}
+
+function dyesabelNormalizeEmailDetails_(details) {
+  if (!Array.isArray(details)) return [];
+  return details.slice(0, 20).map(function (item) {
+    return {
+      label: String(item && item.label || '').trim().slice(0, 80),
+      value: String(item && item.value || '').trim().slice(0, 1000)
+    };
+  }).filter(function (item) {
+    return item.label && item.value;
+  });
+}
+
+function dyesabelSafePublicUrl_(value) {
+  var candidate = String(value || '').trim();
+  return /^https:\/\/[a-z0-9.-]+(?:[/?#]|$)/i.test(candidate) ? candidate.slice(0, 2000) : '';
+}
+
+function dyesabelEmailReferenceId_(actionType) {
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Manila', 'yyyyMMdd-HHmmss');
+  return 'DYESABEL-' + String(actionType || 'AUTH').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12) +
+    '-' + stamp + '-' + Utilities.getUuid().replace(/-/g, '').slice(0, 8).toUpperCase();
+}
+
+function dyesabelAllowedRedirect_(value) {
+  var candidate = String(value || '').trim();
+  if (/^https:\/\/(www\.)?dyesabelph\.org(?:[/?#]|$)/i.test(candidate)) return candidate;
+  if (/^http:\/\/localhost(?::\d+)?(?:[/?#]|$)/i.test(candidate)) return candidate;
+  return DYESABEL_SITE_URL + '/reset-password';
+}
+
+function dyesabelIsEmail_(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || ''));
+}
+
+function dyesabelEscapeHtml_(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function doGet(e) {
@@ -214,6 +493,12 @@ function dyesabelRequireCrudSecret_(provided) {
   var expected = PropertiesService.getScriptProperties().getProperty(DYESABEL_CRUD_SECRET_PROPERTY);
   if (!expected) throw new Error('Set Script Property ' + DYESABEL_CRUD_SECRET_PROPERTY + ' before using Drive CRUD.');
   if (!provided || String(provided) !== expected) throw new Error('Unauthorized Drive CRUD request.');
+}
+
+function dyesabelRequireEmailSecret_(provided) {
+  var expected = PropertiesService.getScriptProperties().getProperty(DYESABEL_EMAIL_SECRET_PROPERTY);
+  if (!expected) throw new Error('Set Script Property ' + DYESABEL_EMAIL_SECRET_PROPERTY + ' before sending auth email.');
+  if (!provided || String(provided) !== expected) throw new Error('Unauthorized authentication email request.');
 }
 
 function dyesabelCheckDriveConnection_(writeTest) {

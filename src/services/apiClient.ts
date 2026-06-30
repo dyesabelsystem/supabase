@@ -93,17 +93,15 @@ const handleChapterAction = async (payload: Payload): Promise<ApiResponse> => {
 };
 
 const handleNewsletter = async (payload: Payload): Promise<ApiResponse> => {
-  const email = String(payload.email || '').trim().toLowerCase();
-  const { error } = await supabase.from('newsletter_subscribers').insert({
-    id: crypto.randomUUID(),
-    email,
-    email_normalized: email,
-    status: 'active',
-    source: String(payload.source || 'Website')
+  const { data, error } = await supabase.functions.invoke('application-email', {
+    body: {
+      action: 'subscribeNewsletter',
+      email: String(payload.email || '').trim().toLowerCase(),
+      source: String(payload.source || 'Website')
+    }
   });
-  if (error?.code === '23505') return { success: true, message: 'You are already subscribed.' };
   if (error) throw error;
-  return { success: true, message: 'Subscription confirmed.' };
+  return data as ApiResponse;
 };
 
 const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
@@ -161,9 +159,8 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
     if (error || !authData.user) throw error || new Error('Profile update failed.');
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .update({ username: payload.username, email: payload.email, updated_at: new Date().toISOString() })
-      .eq('auth_user_id', authData.user.id)
       .select('legacy_user_id,username,email,role,chapter_id')
+      .eq('auth_user_id', authData.user.id)
       .single();
     if (profileError) throw profileError;
     return { success: true, user: mapProfile(profile) };
@@ -183,22 +180,16 @@ const mapProfile = (profile: any) => ({
 });
 
 const handleChatbotTicket = async (payload: Payload): Promise<ApiResponse> => {
-  const trackingNumber = `DYES-${Date.now().toString(36).toUpperCase()}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`;
-  const createdAt = new Date();
-  const { error } = await supabase.from('chatbot_tickets').insert({
-    tracking_number: trackingNumber,
-    email: String(payload.email || '').trim().toLowerCase(),
-    messages: payload.messages || [],
-    context: payload.context || {},
-    status: 'open',
-    created_at: createdAt.toISOString()
+  const { data, error } = await supabase.functions.invoke('application-email', {
+    body: {
+      action: 'createSupportTicket',
+      email: String(payload.email || '').trim().toLowerCase(),
+      messages: payload.messages || [],
+      context: payload.context || {}
+    }
   });
   if (error) throw error;
-  return {
-    success: true,
-    trackingNumber,
-    timestampManila: createdAt.toLocaleString('en-PH', { timeZone: 'Asia/Manila' })
-  };
+  return data as ApiResponse;
 };
 
 const handleCollectionAction = async (payload: Payload): Promise<ApiResponse | null> => {
@@ -219,7 +210,12 @@ const handleCollectionAction = async (payload: Payload): Promise<ApiResponse | n
   const id = String(payload[selected.idKey] || incoming?.id || '');
   const index = items.findIndex((item: any) => String(item?.id) === id);
   if (operation === 'get') return index >= 0 ? { success: true, [selected.responseKey]: items[index] } : { success: false, error: `${entity} not found.` };
-  if (operation === 'create') items.push(incoming);
+  if (!incoming && operation !== 'delete') return { success: false, error: `${entity} data is required.` };
+  if (operation === 'create') {
+    if (!id) return { success: false, error: `${entity} ID is required.` };
+    if (index >= 0) return { success: false, error: `${entity} already exists.` };
+    items.push(incoming);
+  }
   if (operation === 'update') {
     if (index < 0) return { success: false, error: `${entity} not found.` };
     items[index] = incoming;
@@ -239,22 +235,49 @@ const handlePartnerAction = async (payload: Payload): Promise<ApiResponse | null
   if (error) throw error;
   const categories: any[] = Array.isArray(row.data) ? structuredClone(row.data) : [];
   const action = String(payload.action);
-  const categoryId = String(payload.categoryId || payload.category?.id || '');
-  const categoryIndex = categories.findIndex((category) => String(category?.id) === categoryId);
+  let categoryId = String(payload.categoryId || payload.category?.id || '');
+  let categoryIndex = categories.findIndex((category) => String(category?.id) === categoryId);
+  if (action === 'getPartner' && categoryIndex < 0 && payload.partnerId) {
+    categoryIndex = categories.findIndex((category) =>
+      Array.isArray(category?.partners)
+      && category.partners.some((partner: any) => String(partner?.id) === String(payload.partnerId))
+    );
+    categoryId = categoryIndex >= 0 ? String(categories[categoryIndex]?.id || '') : '';
+  }
   if (action === 'getPartnerCategory') return categoryIndex >= 0 ? { success: true, category: categories[categoryIndex] } : { success: false, error: 'Category not found.' };
   if (action.endsWith('PartnerCategory')) {
-    if (action === 'createPartnerCategory') categories.push(payload.category);
-    if (action === 'updatePartnerCategory' && categoryIndex >= 0) categories[categoryIndex] = payload.category;
-    if (action === 'deletePartnerCategory' && categoryIndex >= 0) categories.splice(categoryIndex, 1);
+    if (!categoryId) return { success: false, error: 'Category ID is required.' };
+    if (action === 'createPartnerCategory') {
+      if (categoryIndex >= 0) return { success: false, error: 'Category already exists.' };
+      categories.push(payload.category);
+    }
+    if (action === 'updatePartnerCategory') {
+      if (categoryIndex < 0) return { success: false, error: 'Category not found.' };
+      categories[categoryIndex] = payload.category;
+    }
+    if (action === 'deletePartnerCategory') {
+      if (categoryIndex < 0) return { success: false, error: 'Category not found.' };
+      categories.splice(categoryIndex, 1);
+    }
   } else {
     if (categoryIndex < 0) return { success: false, error: 'Category not found.' };
     const partners = Array.isArray(categories[categoryIndex].partners) ? categories[categoryIndex].partners : [];
     const partnerId = String(payload.partnerId || payload.partner?.id || '');
     const partnerIndex = partners.findIndex((partner: any) => String(partner?.id) === partnerId);
     if (action === 'getPartner') return partnerIndex >= 0 ? { success: true, partner: partners[partnerIndex], categoryId } : { success: false, error: 'Partner not found.' };
-    if (action === 'createPartner') partners.push(payload.partner);
-    if (action === 'updatePartner' && partnerIndex >= 0) partners[partnerIndex] = payload.partner;
-    if (action === 'deletePartner' && partnerIndex >= 0) partners.splice(partnerIndex, 1);
+    if (!partnerId) return { success: false, error: 'Partner ID is required.' };
+    if (action === 'createPartner') {
+      if (partnerIndex >= 0) return { success: false, error: 'Partner already exists.' };
+      partners.push(payload.partner);
+    }
+    if (action === 'updatePartner') {
+      if (partnerIndex < 0) return { success: false, error: 'Partner not found.' };
+      partners[partnerIndex] = payload.partner;
+    }
+    if (action === 'deletePartner') {
+      if (partnerIndex < 0) return { success: false, error: 'Partner not found.' };
+      partners.splice(partnerIndex, 1);
+    }
     categories[categoryIndex].partners = partners;
   }
   const { error: updateError } = await supabase.from('site_content').update({ data: categories, updated_at: new Date().toISOString() }).eq('content_key', 'partners');
@@ -291,10 +314,14 @@ export const sendApiRequest = async <T>(
       if (error) throw error;
       return data as ApiResponse<T>;
     }
-    if (['uploadImage', 'uploadImageFromUrl', 'createFolder', 'listImages', 'deleteImage', 'uploadDonationQr', 'downloadDonationQr'].includes(request.action)) {
+    if (['uploadImage', 'getImage', 'updateImage', 'replaceImage', 'restoreImage', 'listImages', 'deleteImage', 'uploadDonationQr', 'downloadDonationQr'].includes(request.action)) {
       const driveActionMap: Record<string, string> = {
         uploadImage: 'upload',
         uploadDonationQr: 'upload',
+        getImage: 'get',
+        updateImage: 'update',
+        replaceImage: 'replace',
+        restoreImage: 'restore',
         listImages: 'list',
         deleteImage: 'delete',
         downloadDonationQr: 'download'

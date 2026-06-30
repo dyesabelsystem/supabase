@@ -128,7 +128,9 @@ export const PartnersEditor: React.FC<PartnersEditorProps> = ({ categories, onSa
     try {
       const sessionToken = getSessionToken();
       if (!sessionToken) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, 'partners', sessionToken);
+      const oldPartner = editedCategories[categoryIndex]?.partners[partnerIndex];
+      const oldFileId = oldPartner?.logoFileId || oldPartner?.logo;
+      const upload = await uploadImageToDrive(file, 'partners', sessionToken, oldFileId);
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }

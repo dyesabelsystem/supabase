@@ -389,7 +389,9 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
       const uploadedQrUrls: Record<string, string> = {};
       const uploadedQrFileIds: Record<string, string> = {};
       for (const [methodId, file] of Object.entries(pendingQrFiles)) {
-        const uploadResult = await DonationsService.uploadDonationQr(file, sessionToken);
+        const oldMethod = content.localMethods.find((method) => method.id === methodId);
+        const oldFileId = oldMethod?.qrImageFileId || oldMethod?.qrImageUrl;
+        const uploadResult = await DonationsService.uploadDonationQr(file, sessionToken, oldFileId);
         if (!uploadResult.success || !uploadResult.data?.thumbnailUrl) {
           throw new Error(uploadResult.error || 'Unable to upload QR image.');
         }

@@ -1,6 +1,7 @@
-import { convertToCORSFreeLink } from './DriveService';
+import { convertToCORSFreeLink, DriveService, extractDriveFileId } from './DriveService';
 import { sendApiRequest } from './apiClient';
 import { invalidateLocalCache, withLocalCache } from '../utils/cache';
+import { buildDescriptiveImageFileName } from '../utils/imageFileName';
 
 export interface DonationMethod {
   id: string;
@@ -231,7 +232,8 @@ export const DonationsService = {
 
   async uploadDonationQr(
     file: File,
-    sessionToken: string
+    sessionToken: string,
+    oldFileId?: string
   ): Promise<DonationsApiResponse<{ fileId: string; fileUrl: string; thumbnailUrl: string }>> {
     if (file.size > 5 * 1024 * 1024) {
       return { success: false, error: 'File too large. Maximum size is 5MB.' };
@@ -241,7 +243,7 @@ export const DonationsService = {
     const result = await sendApiRequest<DonationQrUploadResponse>('main', {
       action: 'uploadDonationQr',
       sessionToken,
-      fileName: file.name,
+      fileName: buildDescriptiveImageFileName(file, 'donation-payment-qr'),
       fileType: file.type,
       fileData: base64
     });
@@ -253,10 +255,23 @@ export const DonationsService = {
       };
     }
 
+    const newFileId = String(result.fileId || '');
+    const normalizedOldFileId = extractDriveFileId(oldFileId || '') || oldFileId;
+    if (newFileId && normalizedOldFileId && normalizedOldFileId !== newFileId) {
+      const deleteResult = await DriveService.deleteImage(normalizedOldFileId, sessionToken);
+      if (!deleteResult.success) {
+        await DriveService.deleteImage(newFileId, sessionToken);
+        return {
+          success: false,
+          error: deleteResult.error || 'The new QR image uploaded, but the previous image could not be deleted.'
+        };
+      }
+    }
+
     return {
       success: true,
       data: {
-        fileId: String(result.fileId || ''),
+        fileId: newFileId,
         fileUrl: String(result.fileUrl || ''),
         thumbnailUrl: String(result.thumbnailUrl || result.fileUrl || '')
       }

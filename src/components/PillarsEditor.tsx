@@ -296,7 +296,10 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
       const upload = await uploadImageToDrive(
         file,
         activityIndex === null ? 'pillars' : 'pillar-activities',
-        sessionToken
+        sessionToken,
+        activeActivityEditor && activityDraft
+          ? activityDraft.imageFileId || activityDraft.imageUrl
+          : editedPillars[pillarIndex]?.imageFileId || editedPillars[pillarIndex]?.imageUrl
       );
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');

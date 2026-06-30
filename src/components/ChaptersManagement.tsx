@@ -344,7 +344,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         return;
       }
 
-      const upload = await uploadImageToDrive(file, 'chapter-logo', token);
+      const oldFileId = chapterFormData.logoFileId || chapterFormData.logoUrl || chapterFormData.logo;
+      const upload = await uploadImageToDrive(file, 'chapter-logo', token, oldFileId);
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }
@@ -380,7 +381,10 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     try {
       const token = getSessionToken();
       if (!token) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, `chapter-${field}`, token);
+      const oldFileId = field === 'image'
+        ? chapterFormData.imageFileId || chapterFormData.imageUrl || chapterFormData.image
+        : chapterFormData.headImageFileId || chapterFormData.headImageUrl;
+      const upload = await uploadImageToDrive(file, `chapter-${field}`, token, oldFileId);
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }
@@ -558,7 +562,12 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     try {
       const token = getSessionToken();
       if (!token) throw new Error('Session expired. Please log in again.');
-      const upload = await uploadImageToDrive(file, 'chapter-activity', token);
+      const upload = await uploadImageToDrive(
+        file,
+        'chapter-activity',
+        token,
+        chapterActivityDraft.imageFileId || chapterActivityDraft.imageUrl
+      );
       if (!upload.success || !upload.url || !upload.fileId) {
         throw new Error(upload.error || 'Google Drive did not return an uploaded image URL.');
       }
@@ -673,7 +682,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       }
 
       if (userEditorForm.password) {
-        const passRes = await AuthService.updatePassword(token, userEditorForm.password, userEditorForm.username);
+        const passRes = await AuthService.updatePassword(token, userEditorForm.userId, userEditorForm.password);
         if (!passRes.success) {
           await showAlert('User info updated, but password update failed: ' + passRes.message);
         }

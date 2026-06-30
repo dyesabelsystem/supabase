@@ -215,6 +215,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
   };
 
   const handleChangePassword = async () => {
+    if (!selectedUser) {
+      await showAlert('Select a user before changing a password.');
+      return;
+    }
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
       await showAlert('Passwords do not match!');
       return;
@@ -233,8 +238,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
 
     const result = await AuthService.updatePassword(
       sessionToken,
-      passwordData.newPassword,
-      selectedUser?.username
+      selectedUser.id,
+      passwordData.newPassword
     );
 
     if (result.success) {

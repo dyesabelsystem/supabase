@@ -1,7 +1,7 @@
 import React from 'react';
 import { useAppDialog } from '../contexts/AppDialogContext';
 
-const VOLUNTEER_URL = "https://forms.gle/W6WVpftGDwM7fUm19";
+const VOLUNTEER_URL = "https://tinyurl.com/DyesabelVolunteers2026";
 const HERO_BACKGROUND_IMAGE = 'https://i.imgur.com/LH9trqH.jpeg';
 
 interface HeroProps {

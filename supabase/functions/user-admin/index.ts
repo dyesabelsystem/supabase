@@ -57,11 +57,11 @@ Deno.serve(async (request) => {
       const { error } = await admin.auth.admin.updateUserById(profile.auth_user_id, attributes);
       if (error) throw error;
       if (action === "updateUser") {
-        const { data: updated, error: updateError } = await admin.from("profiles").update({
-          username: body.username, email: body.email, role: body.role,
-          chapter_id: body.chapterId || null, updated_at: new Date().toISOString(),
-        }).eq("id", profile.id).select("legacy_user_id,username,email,role,chapter_id").single();
-        if (updateError) throw updateError;
+        const { data: updated, error: profileError } = await admin.from("profiles")
+          .select("legacy_user_id,username,email,role,chapter_id")
+          .eq("id", profile.id)
+          .single();
+        if (profileError) throw profileError;
         return Response.json({ success: true, user: mapProfile(updated) }, { headers: cors });
       }
       return Response.json({ success: true }, { headers: cors });
