@@ -106,6 +106,49 @@ const handleNewsletter = async (payload: Payload): Promise<ApiResponse<any>> => 
   return data as ApiResponse;
 };
 
+const isMissingPillarIdColumnError = (error: any): boolean => {
+  const message = String(error?.message || '').toLowerCase();
+  const details = String(error?.details || '').toLowerCase();
+  const hint = String(error?.hint || '').toLowerCase();
+  return (message.includes('pillar_id') || details.includes('pillar_id') || hint.includes('pillar_id'))
+    && (message.includes('does not exist') || details.includes('does not exist'));
+};
+
+const fetchProfileByColumn = async (column: 'auth_user_id' | 'email', value: string) => {
+  const fullSelection = 'legacy_user_id,username,email,role,chapter_id,pillar_id';
+  const baseSelection = 'legacy_user_id,username,email,role,chapter_id';
+
+  const primaryResult = await supabase
+    .from('profiles')
+    .select(fullSelection)
+    .eq(column, value)
+    .maybeSingle();
+
+  if (!primaryResult.error) return primaryResult;
+  if (!isMissingPillarIdColumnError(primaryResult.error)) return primaryResult;
+
+  const fallbackResult = await supabase
+    .from('profiles')
+    .select(baseSelection)
+    .eq(column, value)
+    .maybeSingle();
+
+  return {
+    ...fallbackResult,
+    data: fallbackResult.data ? { ...fallbackResult.data, pillar_id: null } : fallbackResult.data
+  };
+};
+
+const fetchProfileForAuthUser = async (authUserId: string, authEmail?: string | null) => {
+  const byAuthUserId = await fetchProfileByColumn('auth_user_id', authUserId);
+  if (byAuthUserId.error || byAuthUserId.data) return byAuthUserId;
+
+  const normalizedEmail = String(authEmail || '').trim().toLowerCase();
+  if (!normalizedEmail) return byAuthUserId;
+
+  return fetchProfileByColumn('email', normalizedEmail);
+};
+
 const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => {
   if (payload.action === 'logout') {
     const { error } = await supabase.auth.signOut();
@@ -115,11 +158,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
   if (payload.action === 'validateSession') {
     const { data: userData, error } = await supabase.auth.getUser();
     if (error || !userData.user) return { success: false, error: 'Session expired' };
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
-      .eq('auth_user_id', userData.user.id)
-      .maybeSingle();
+    const { data: profile, error: profileError } = await fetchProfileForAuthUser(userData.user.id, userData.user.email);
     if (profileError) throw profileError;
     if (!profile) return { success: false, error: ACCOUNT_NOT_FOUND_ERROR };
     return { success: true, valid: true, user: mapProfile(profile) };
@@ -134,11 +173,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
       password: String(payload.password || '')
     });
     if (error || !data.user || !data.session) return { success: false, error: error?.message || 'Invalid credentials' };
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
-      .eq('auth_user_id', data.user.id)
-      .maybeSingle();
+    const { data: profile, error: profileError } = await fetchProfileForAuthUser(data.user.id, data.user.email);
     if (profileError || !profile) {
       await supabase.auth.signOut({ scope: 'local' });
       if (profileError) throw profileError;
@@ -164,12 +199,9 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
     if (payload.newPassword) attributes.password = payload.newPassword;
     const { data: authData, error } = await supabase.auth.updateUser(attributes);
     if (error || !authData.user) throw error || new Error('Profile update failed.');
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
-      .eq('auth_user_id', authData.user.id)
-      .single();
+    const { data: profile, error: profileError } = await fetchProfileForAuthUser(authData.user.id, authData.user.email);
     if (profileError) throw profileError;
+    if (!profile) return { success: false, error: ACCOUNT_NOT_FOUND_ERROR };
     return { success: true, user: mapProfile(profile) };
   }
   return {

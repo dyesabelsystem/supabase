@@ -1,8 +1,20 @@
+# Node
 node_modules/
 dist/
 build/
-node_modules
+npm-debug.log*
+
+# Environment
 .env
 .env.*
 !.env.example
 !.env.vercel.example
+
+# System & IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Git
+.git/
