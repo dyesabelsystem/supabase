@@ -33,7 +33,12 @@ export const Header: React.FC<HeaderProps> = ({
   const { user, logout } = useAuth();
   const { showConfirm } = useAppDialog();
   const isAdmin = user?.role === 'admin';
-  const canAccessDashboard = !!user && (isAdmin || (user.role === 'editor' && !user.chapterId) || !!user.chapterId);
+  const canAccessDashboard = !!user && (
+    isAdmin
+    || (user.role === 'editor' && !user.chapterId)
+    || (user.role === 'pillar_editor' && !!user.pillarId)
+    || !!user.chapterId
+  );
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 

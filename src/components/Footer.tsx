@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { Facebook, Twitter, Instagram, Mail, MapPin, Phone } from 'lucide-react';
 import { APP_CONFIG } from '../config';
 import { DonationsService } from '../services/DonationsService';
+import { PRIVACY_POLICY_PATH, TERMS_OF_SERVICE_PATH } from '../utils/routes';
 
 interface FooterProps {
   onDonateClick?: (e: React.MouseEvent) => void;
   onNavigate: (sectionId: string) => void;
+  onLegalNavigate: (path: string) => void;
 }
 
-export const Footer: React.FC<FooterProps> = ({ onDonateClick, onNavigate }) => {
+export const Footer: React.FC<FooterProps> = ({ onDonateClick, onNavigate, onLegalNavigate }) => {
   const [email, setEmail] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
@@ -155,8 +157,12 @@ export const Footer: React.FC<FooterProps> = ({ onDonateClick, onNavigate }) => 
           </div>
         </div>
 
-        <div className="border-t border-white/10 pt-8 text-center text-sm font-medium text-gray-500">
+        <div className="flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 text-center text-sm font-medium text-gray-500 sm:flex-row sm:text-left">
           <p>&copy; {new Date().getFullYear()} Dyesabel Philippines, Inc. All rights reserved.</p>
+          <nav aria-label="Legal" className="flex items-center gap-5">
+            <a href={PRIVACY_POLICY_PATH} onClick={(event) => { event.preventDefault(); onLegalNavigate(PRIVACY_POLICY_PATH); }} className="transition-colors hover:text-primary-cyan">Privacy Policy</a>
+            <a href={TERMS_OF_SERVICE_PATH} onClick={(event) => { event.preventDefault(); onLegalNavigate(TERMS_OF_SERVICE_PATH); }} className="transition-colors hover:text-primary-cyan">Terms of Service</a>
+          </nav>
         </div>
       </div>
     </footer>

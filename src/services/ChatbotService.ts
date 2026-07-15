@@ -82,6 +82,27 @@ export interface ChatbotAnswer {
   sources?: ChatbotCitation[];
 }
 
+export interface ChatbotDiagnosticCheck {
+  name: string;
+  status: 'ok' | 'error';
+  message: string;
+}
+
+export interface ChatbotDiagnosticResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  checkedAt: string;
+  latencyMs: number;
+  checks: ChatbotDiagnosticCheck[];
+}
+
+interface ChatbotGasResponse {
+  success: boolean;
+  error?: string;
+  [key: string]: unknown;
+}
+
 interface LocalKnowledgeItem {
   id: string;
   keywords: string[];
@@ -107,6 +128,61 @@ const TRUSTED_CHATBOT_SOURCE_HOSTS = [
   'gov.ph',
   'pubmed.ncbi.nlm.nih.gov'
 ];
+
+const sendChatbotGasRequest = async <T extends ChatbotGasResponse>(
+  payload: Record<string, unknown>
+): Promise<T> => {
+  const endpoint = String(APP_CONFIG.chatbotGasUrl || '').trim();
+  if (!endpoint) {
+    return {
+      success: false,
+      error: 'VITE_CHATBOT_GAS_URL is not configured.'
+    } as T;
+  }
+
+  const controller = new AbortController();
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), 25_000);
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+      body: JSON.stringify(payload),
+      credentials: 'omit',
+      redirect: 'follow',
+      referrerPolicy: 'no-referrer',
+      cache: 'no-store',
+      signal: controller.signal
+    });
+    const responseText = await response.text();
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `GAS chatbot returned HTTP ${response.status}.`
+      } as T;
+    }
+
+    try {
+      const parsed = JSON.parse(responseText);
+      if (!parsed || typeof parsed !== 'object') throw new Error('Response is not an object.');
+      return parsed as T;
+    } catch {
+      return {
+        success: false,
+        error: 'GAS chatbot returned an invalid JSON response.'
+      } as T;
+    }
+  } catch (error) {
+    const message = error instanceof Error && error.name === 'AbortError'
+      ? 'GAS chatbot request timed out.'
+      : error instanceof Error
+        ? error.message
+        : 'GAS chatbot request failed.';
+    return { success: false, error: message } as T;
+  } finally {
+    globalThis.clearTimeout(timeoutId);
+  }
+};
 
 const isTrustedChatbotSourceUrl = (value: string): boolean => {
   const text = String(value || '').trim();
@@ -477,6 +553,70 @@ const buildNoDataMessage = (supportEmail: string): string => {
   return `I currently do not have enough verified data to answer that accurately. Please email us at ${email} so our team can assist you directly.`;
 };
 
+export const runChatbotDiagnostics = async (clientId: string): Promise<ChatbotDiagnosticResult> => {
+  const startedAt = Date.now();
+  const browserCheck: ChatbotDiagnosticCheck = {
+    name: 'Browser network',
+    status: typeof navigator !== 'undefined' && navigator.onLine === false ? 'error' : 'ok',
+    message: typeof navigator !== 'undefined' && navigator.onLine === false
+      ? 'The browser reports that this device is offline.'
+      : 'The browser reports an available network connection.'
+  };
+
+  if (browserCheck.status === 'error') {
+    return {
+      ok: false,
+      code: 'CB-101',
+      message: 'This device is offline. Connect to the internet and run the command again.',
+      checkedAt: new Date().toISOString(),
+      latencyMs: Date.now() - startedAt,
+      checks: [browserCheck]
+    };
+  }
+
+  const apiResult = await sendChatbotGasRequest<ChatbotGasResponse & {
+    diagnostics?: Omit<ChatbotDiagnosticResult, 'checks'> & { checks?: ChatbotDiagnosticCheck[] };
+  }>({ action: 'chatbotDiagnostics', clientId });
+  const diagnostics = apiResult.diagnostics;
+
+  if (!apiResult.success) {
+    return {
+      ok: false,
+      code: 'CB-211',
+      message: `The GAS chatbot endpoint could not be reached: ${String(apiResult.error || 'Unknown connection error.')}`,
+      checkedAt: new Date().toISOString(),
+      latencyMs: Date.now() - startedAt,
+      checks: [
+        browserCheck,
+        { name: 'Google Apps Script web app', status: 'error', message: String(apiResult.error || 'No response received.') }
+      ]
+    };
+  }
+
+  if (!diagnostics || !diagnostics.code) {
+    return {
+      ok: false,
+      code: 'CB-202',
+      message: 'The GAS chatbot endpoint returned an invalid diagnostic response.',
+      checkedAt: new Date().toISOString(),
+      latencyMs: Date.now() - startedAt,
+      checks: [
+        browserCheck,
+        { name: 'Google Apps Script web app', status: 'error', message: 'Diagnostic response was missing required fields.' }
+      ]
+    };
+  }
+
+  return {
+    ok: Boolean(diagnostics.ok),
+    code: String(diagnostics.code),
+    message: String(diagnostics.message || 'No diagnostic message was returned.'),
+    checkedAt: String(diagnostics.checkedAt || new Date().toISOString()),
+    latencyMs: Number(diagnostics.latencyMs || Date.now() - startedAt),
+    checks: [browserCheck, ...(Array.isArray(diagnostics.checks) ? diagnostics.checks : [])]
+  };
+};
+
 export const askHybridChatbot = async (
   question: string,
   history: ChatHistoryItem[],
@@ -520,7 +660,7 @@ export const askHybridChatbot = async (
       }
     : null;
 
-  const apiResult = await sendApiRequest<{
+  const apiResult = await sendChatbotGasRequest<ChatbotGasResponse & {
     answer?: string;
     source?: ChatbotSource;
     confidence?: number;
@@ -528,8 +668,9 @@ export const askHybridChatbot = async (
     noData?: boolean;
     media?: ChatbotMedia[];
     sources?: ChatbotCitation[];
-  }>('chatbot', {
+  }>({
     action: 'chatbotAsk',
+    clientId: hydratedContext.clientId,
     question: trimmedQuestion,
     history,
     context: hydratedContext,

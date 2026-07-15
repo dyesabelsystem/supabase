@@ -10,6 +10,7 @@ import {
   ChatbotTicketMessage,
   ChatHistoryItem,
   normalizeChatbotImageUrl,
+  runChatbotDiagnostics,
   submitChatbotTicket
 } from '../services/ChatbotService';
 import { Chapter, Pillar } from '../types';
@@ -43,6 +44,7 @@ const SEND_COOLDOWN_MAX_MS = 5000;
 const CHATBOT_CLIENT_ID_STORAGE_KEY = 'dyesabel.chatbot.client_id';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 const FILE_TICKET_TRIGGER = 'file a ticket';
+const DIAGNOSTIC_COMMAND = '/dyesabel-debug';
 
 const makeMessageId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -352,6 +354,49 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   const submitQuestion = async (question: string) => {
     const trimmed = question.trim();
     if (!trimmed || isSending || isSubmittingTicket) return;
+
+    if (trimmed.toLowerCase() === DIAGNOSTIC_COMMAND) {
+      setMessages((previous) => [
+        ...previous,
+        { id: makeMessageId(), role: 'user', content: trimmed }
+      ]);
+      setInput('');
+      setIsSending(true);
+
+      try {
+        const result = await runChatbotDiagnostics(chatbotClientId);
+        const checkLines = result.checks.map((check) =>
+          `- ${check.status === 'ok' ? 'OK' : 'ISSUE'} — ${check.name}: ${check.message}`
+        );
+        const content = [
+          `**Chatbot diagnostic: ${result.ok ? 'PASS' : 'ISSUE FOUND'}**`,
+          `**Code:** ${result.code}`,
+          `**Message:** ${result.message}`,
+          `**Latency:** ${result.latencyMs} ms`,
+          `**Checked:** ${result.checkedAt}`,
+          '',
+          ...checkLines
+        ].join('\n');
+
+        setMessages((previous) => [
+          ...previous,
+          { id: makeMessageId(), role: 'assistant', content }
+        ]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setMessages((previous) => [
+          ...previous,
+          {
+            id: makeMessageId(),
+            role: 'assistant',
+            content: `**Chatbot diagnostic: ISSUE FOUND**\n**Code:** CB-299\n**Message:** Unexpected diagnostic error: ${message}`
+          }
+        ]);
+      } finally {
+        setIsSending(false);
+      }
+      return;
+    }
 
     if (ticketStage === 'idle' && trimmed.toLowerCase() === FILE_TICKET_TRIGGER) {
       setMessages((previous) => [

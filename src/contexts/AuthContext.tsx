@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole } from '../types';
 import { AuthService } from '../services/DriveService';
+import { ACCOUNT_NOT_FOUND_ERROR } from '../services/apiClient';
 import { supabase } from '../services/supabaseClient';
 import { clearPersistedAppState } from '../utils/appState';
 import {
@@ -33,7 +34,10 @@ export const AUTH_REDIRECT_MESSAGE_KEY = 'dyesabel:auth-redirect-message';
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => getSessionUser());
-  const [isLoading, setIsLoading] = useState<boolean>(() => !!getSessionToken());
+  // Auth may still be restoring an OAuth callback even when the app's custom
+  // session has not been persisted yet. Keep this true until that check ends so
+  // the login modal can show callback failures immediately.
+  const [isLoading, setIsLoading] = useState(true);
 
   const logout = () => {
     const token = getSessionToken();
@@ -71,23 +75,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (!token && sessionData.session) {
               window.sessionStorage.setItem(
                 AUTH_REDIRECT_MESSAGE_KEY,
-                'No Dyesabel account is associated with that Google account.'
+                ACCOUNT_NOT_FOUND_ERROR
               );
             }
             setUser(null);
             clearSession();
-            await supabase.auth.signOut();
+            await supabase.auth.signOut({ scope: 'local' });
           }
         } catch {
           if (!token && sessionData.session) {
             window.sessionStorage.setItem(
               AUTH_REDIRECT_MESSAGE_KEY,
-              'No Dyesabel account is associated with that Google account.'
+              ACCOUNT_NOT_FOUND_ERROR
             );
           }
           setUser(null);
           clearSession();
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: 'local' });
         }
       }
       setIsLoading(false);

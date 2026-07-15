@@ -22,12 +22,13 @@ Deno.serve(async (request) => {
     const body = await request.json();
     const action = String(body.action || "");
     if (action === "listUsers") {
-      const { data, error } = await admin.from("profiles").select("legacy_user_id,username,email,role,chapter_id").order("username");
+      const { data, error } = await admin.from("profiles").select("legacy_user_id,username,email,role,chapter_id,pillar_id").order("username");
       if (error) throw error;
       return Response.json({ success: true, users: (data || []).map(mapProfile) }, { headers: cors });
     }
     if (action === "createUser") {
-      const metadata = appMetadata(body.role, body.chapterId);
+      const assignment = normalizeAssignment(body.role, body.chapterId, body.pillarId);
+      const metadata = appMetadata(assignment.role, assignment.chapterId, assignment.pillarId);
       const { data: created, error } = await admin.auth.admin.createUser({
         email: String(body.email || "").trim().toLowerCase(),
         password: String(body.password || ""),
@@ -39,8 +40,9 @@ Deno.serve(async (request) => {
       const legacyId = `dyesabel-${String(new Date().getFullYear()).slice(-2)}-${crypto.randomUUID().slice(0, 4)}`;
       const { data: profile, error: profileError } = await admin.from("profiles").insert({
         auth_user_id: created.user.id, legacy_user_id: legacyId, username: body.username,
-        email: created.user.email, role: body.role, chapter_id: body.chapterId || null,
-      }).select("legacy_user_id,username,email,role,chapter_id").single();
+        email: created.user.email, role: assignment.role,
+        chapter_id: assignment.chapterId || null, pillar_id: assignment.pillarId || null,
+      }).select("legacy_user_id,username,email,role,chapter_id,pillar_id").single();
       if (profileError) { await admin.auth.admin.deleteUser(created.user.id); throw profileError; }
       return Response.json({ success: true, user: mapProfile(profile) }, { headers: cors });
     }
@@ -51,14 +53,15 @@ Deno.serve(async (request) => {
       if (body.email) attributes.email = String(body.email).trim().toLowerCase();
       if (body.newPassword) attributes.password = String(body.newPassword);
       if (action === "updateUser") {
-        attributes.app_metadata = appMetadata(body.role, body.chapterId);
+        const assignment = normalizeAssignment(body.role, body.chapterId, body.pillarId);
+        attributes.app_metadata = appMetadata(assignment.role, assignment.chapterId, assignment.pillarId);
         attributes.user_metadata = { username: body.username, display_name: body.username, full_name: body.username, name: body.username };
       }
       const { error } = await admin.auth.admin.updateUserById(profile.auth_user_id, attributes);
       if (error) throw error;
       if (action === "updateUser") {
         const { data: updated, error: profileError } = await admin.from("profiles")
-          .select("legacy_user_id,username,email,role,chapter_id")
+          .select("legacy_user_id,username,email,role,chapter_id,pillar_id")
           .eq("id", profile.id)
           .single();
         if (profileError) throw profileError;
@@ -78,9 +81,30 @@ Deno.serve(async (request) => {
   }
 });
 
-function appMetadata(role: string, chapterId?: string) {
-  return { role, ...(chapterId ? { chapter_id: chapterId } : {}) };
+function normalizeAssignment(roleValue: unknown, chapterValue?: unknown, pillarValue?: unknown) {
+  const role = String(roleValue || "").trim();
+  const chapterId = String(chapterValue || "").trim();
+  const pillarId = String(pillarValue || "").trim();
+  if (!["admin", "editor", "pillar_editor", "chapter_head", "member"].includes(role)) {
+    throw new Error("Invalid user role.");
+  }
+  if (role === "pillar_editor" && !pillarId) throw new Error("Pillar editors require a pillar assignment.");
+  if (role === "pillar_editor" && chapterId) throw new Error("Pillar editors cannot be assigned to a chapter.");
+  if ((role === "chapter_head" || role === "member") && !chapterId) throw new Error("This role requires a chapter assignment.");
+  if (role !== "pillar_editor" && pillarId) throw new Error("Only pillar editors can have a pillar assignment.");
+  if (role === "admin" && chapterId) throw new Error("Admins cannot be assigned to a chapter.");
+  return { role, chapterId, pillarId };
+}
+function appMetadata(role: string, chapterId?: string, pillarId?: string) {
+  return {
+    role,
+    ...(chapterId ? { chapter_id: chapterId } : {}),
+    ...(pillarId ? { pillar_id: pillarId } : {})
+  };
 }
 function mapProfile(row: Record<string, unknown>) {
-  return { id: row.legacy_user_id, username: row.username, email: row.email, role: row.role, chapterId: row.chapter_id || undefined };
+  return {
+    id: row.legacy_user_id, username: row.username, email: row.email, role: row.role,
+    chapterId: row.chapter_id || undefined, pillarId: row.pillar_id || undefined
+  };
 }

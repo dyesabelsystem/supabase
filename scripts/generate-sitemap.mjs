@@ -61,7 +61,9 @@ const callSupabase = async (resource) => {
 
 const buildStaticUrls = () => [
   { loc: `${normalizeOrigin(SITE_ORIGIN)}/home`, changefreq: 'weekly', priority: '1.0' },
-  { loc: `${normalizeOrigin(SITE_ORIGIN)}/donate`, changefreq: 'weekly', priority: '0.9' }
+  { loc: `${normalizeOrigin(SITE_ORIGIN)}/donate`, changefreq: 'weekly', priority: '0.9' },
+  { loc: `${normalizeOrigin(SITE_ORIGIN)}/privacy-policy`, changefreq: 'monthly', priority: '0.5' },
+  { loc: `${normalizeOrigin(SITE_ORIGIN)}/terms-of-service`, changefreq: 'monthly', priority: '0.5' }
 ];
 
 const buildChapterUrls = (chapters) => {

@@ -5,6 +5,7 @@ import { APP_CONFIG } from '../config';
 import { LoadingScreen } from './LoadingScreen';
 import { supabase } from '../services/supabaseClient';
 import { AUTH_REDIRECT_MESSAGE_KEY } from '../contexts/AuthContext';
+import { ACCOUNT_NOT_FOUND_ERROR } from '../services/apiClient';
 import { toast } from 'sonner';
 
 interface LoginModalProps {
@@ -55,7 +56,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
 
       if (oauthError) {
         const message = oauthErrorDescription?.includes('No Dyesabel account is associated')
-          ? 'No Dyesabel account is associated with that Google account.'
+          ? ACCOUNT_NOT_FOUND_ERROR
           : oauthErrorDescription || 'Google sign in failed. Please try again.';
 
         setError(message);

@@ -11,6 +11,8 @@ export interface ApiResponse<T = unknown> {
 type ApiTarget = 'main' | 'users' | 'donations' | 'chatbot';
 type Payload = Record<string, any>;
 
+export const ACCOUNT_NOT_FOUND_ERROR = 'Your account was not found in the system.';
+
 const CONTENT_ACTIONS: Record<string, { key: string; responseKey: string; write: boolean }> = {
   getOrgSettings: { key: 'org_settings', responseKey: 'settings', write: false },
   updateOrgSettings: { key: 'org_settings', responseKey: 'settings', write: true },
@@ -41,16 +43,16 @@ const contentValue = (payload: Payload, responseKey: string) =>
 const handleContentAction = async (payload: Payload, config: typeof CONTENT_ACTIONS[string]) => {
   if (config.write) {
     const { data: authData } = await supabase.auth.getUser();
-    const { data, error } = await supabase
-      .from('site_content')
-      .upsert({
+    const contentRow = {
         content_key: config.key,
         data: contentValue(payload, config.responseKey),
         updated_by: authData.user?.id ?? null,
         updated_at: new Date().toISOString()
-      })
-      .select('data')
-      .single();
+      };
+    const query = config.key === 'pillars'
+      ? supabase.from('site_content').update(contentRow).eq('content_key', config.key)
+      : supabase.from('site_content').upsert(contentRow);
+    const { data, error } = await query.select('data').single();
     if (error) throw error;
     return { success: true, [config.responseKey]: data.data };
   }
@@ -64,7 +66,7 @@ const handleContentAction = async (payload: Payload, config: typeof CONTENT_ACTI
   return { success: true, [config.responseKey]: data.data };
 };
 
-const handleChapterAction = async (payload: Payload): Promise<ApiResponse> => {
+const handleChapterAction = async (payload: Payload): Promise<ApiResponse<any>> => {
   if (payload.action === 'listChapters') {
     const { data, error } = await supabase.from('chapters').select('data').order('sort_order');
     if (error) throw error;
@@ -92,7 +94,7 @@ const handleChapterAction = async (payload: Payload): Promise<ApiResponse> => {
   return { success: true };
 };
 
-const handleNewsletter = async (payload: Payload): Promise<ApiResponse> => {
+const handleNewsletter = async (payload: Payload): Promise<ApiResponse<any>> => {
   const { data, error } = await supabase.functions.invoke('application-email', {
     body: {
       action: 'subscribeNewsletter',
@@ -104,7 +106,7 @@ const handleNewsletter = async (payload: Payload): Promise<ApiResponse> => {
   return data as ApiResponse;
 };
 
-const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
+const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => {
   if (payload.action === 'logout') {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -115,10 +117,11 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
     if (error || !userData.user) return { success: false, error: 'Session expired' };
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id')
+      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
       .eq('auth_user_id', userData.user.id)
-      .single();
+      .maybeSingle();
     if (profileError) throw profileError;
+    if (!profile) return { success: false, error: ACCOUNT_NOT_FOUND_ERROR };
     return { success: true, valid: true, user: mapProfile(profile) };
   }
   if (payload.action === 'login') {
@@ -133,10 +136,14 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
     if (error || !data.user || !data.session) return { success: false, error: error?.message || 'Invalid credentials' };
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id')
+      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
       .eq('auth_user_id', data.user.id)
-      .single();
-    if (profileError) throw profileError;
+      .maybeSingle();
+    if (profileError || !profile) {
+      await supabase.auth.signOut({ scope: 'local' });
+      if (profileError) throw profileError;
+      return { success: false, error: ACCOUNT_NOT_FOUND_ERROR };
+    }
     return { success: true, sessionToken: data.session.access_token, user: mapProfile(profile) };
   }
   if (['listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword'].includes(payload.action)) {
@@ -159,7 +166,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse> => {
     if (error || !authData.user) throw error || new Error('Profile update failed.');
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('legacy_user_id,username,email,role,chapter_id')
+      .select('legacy_user_id,username,email,role,chapter_id,pillar_id')
       .eq('auth_user_id', authData.user.id)
       .single();
     if (profileError) throw profileError;
@@ -176,10 +183,11 @@ const mapProfile = (profile: any) => ({
   username: profile.username,
   email: profile.email,
   role: profile.role,
-  chapterId: profile.chapter_id || undefined
+  chapterId: profile.chapter_id || undefined,
+  pillarId: profile.pillar_id || undefined
 });
 
-const handleChatbotTicket = async (payload: Payload): Promise<ApiResponse> => {
+const handleChatbotTicket = async (payload: Payload): Promise<ApiResponse<any>> => {
   const { data, error } = await supabase.functions.invoke('application-email', {
     body: {
       action: 'createSupportTicket',
@@ -192,7 +200,7 @@ const handleChatbotTicket = async (payload: Payload): Promise<ApiResponse> => {
   return data as ApiResponse;
 };
 
-const handleCollectionAction = async (payload: Payload): Promise<ApiResponse | null> => {
+const handleCollectionAction = async (payload: Payload): Promise<ApiResponse<any> | null> => {
   const match = String(payload.action || '').match(/^(get|create|update|delete)(Pillar|Founder|ExecutiveOfficer|Story)$/);
   if (!match) return null;
   const [, operation, entity] = match;
@@ -229,7 +237,7 @@ const handleCollectionAction = async (payload: Payload): Promise<ApiResponse | n
   return { success: true, [selected.responseKey]: incoming };
 };
 
-const handlePartnerAction = async (payload: Payload): Promise<ApiResponse | null> => {
+const handlePartnerAction = async (payload: Payload): Promise<ApiResponse<any> | null> => {
   if (!/^(get|create|update|delete)Partner(Category)?$/.test(String(payload.action || ''))) return null;
   const { data: row, error } = await supabase.from('site_content').select('data').eq('content_key', 'partners').single();
   if (error) throw error;
@@ -309,11 +317,6 @@ export const sendApiRequest = async <T>(
       return { success: true, data: result.donationContent };
     }
     if (request.action === 'chatbotCreateTicket') return await handleChatbotTicket(request);
-    if (request.action === 'chatbotAsk') {
-      const { data, error } = await supabase.functions.invoke('chatbot', { body: request });
-      if (error) throw error;
-      return data as ApiResponse<T>;
-    }
     if (['uploadImage', 'getImage', 'updateImage', 'replaceImage', 'restoreImage', 'listImages', 'deleteImage', 'uploadDonationQr', 'downloadDonationQr'].includes(request.action)) {
       const driveActionMap: Record<string, string> = {
         uploadImage: 'upload',

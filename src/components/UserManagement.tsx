@@ -14,6 +14,7 @@ interface NewUserState {
   email: string;
   role: UserRole;
   chapterId: string;
+  pillarId: string;
 }
 
 interface EditUserState {
@@ -22,6 +23,7 @@ interface EditUserState {
   email: string;
   role: UserRole;
   chapterId: string;
+  pillarId: string;
 }
 
 interface UserManagementProps {
@@ -36,6 +38,8 @@ const roleOptions: CustomSelectOption[] = USER_ROLES.map((role) => ({
       ? 'Full platform access'
       : role === 'editor'
         ? 'Global or chapter-scoped editor'
+        : role === 'pillar_editor'
+          ? 'Editor for one assigned pillar'
         : role === 'chapter_head'
           ? 'Leads a specific chapter'
           : 'Standard chapter member'
@@ -56,7 +60,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
     password: '',
     email: '',
     role: 'member',
-    chapterId: ''
+    chapterId: '',
+    pillarId: ''
   });
 
   const [editUser, setEditUser] = useState<EditUserState>({
@@ -64,7 +69,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
     username: '',
     email: '',
     role: 'member',
-    chapterId: ''
+    chapterId: '',
+    pillarId: ''
   });
 
   const [passwordData, setPasswordData] = useState({
@@ -102,6 +108,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
       return;
     }
 
+    if (newUser.role === 'pillar_editor' && !newUser.pillarId) {
+      await showAlert('Pillar ID is required for pillar editors');
+      return;
+    }
+
     if (newUser.role === 'admin' && newUser.chapterId) {
       await showAlert('Admin accounts cannot be assigned to a chapter');
       return;
@@ -124,7 +135,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
         password: '',
         email: '',
         role: 'member',
-        chapterId: ''
+        chapterId: '',
+        pillarId: ''
       });
       loadUsers();
     } else {
@@ -164,7 +176,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
       username: user.username,
       email: user.email,
       role: user.role,
-      chapterId: user.chapterId || ''
+      chapterId: user.chapterId || '',
+      pillarId: user.pillarId || ''
     });
     setShowEditUser(true);
   };
@@ -177,7 +190,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
       username: '',
       email: '',
       role: 'member',
-      chapterId: ''
+      chapterId: '',
+      pillarId: ''
     });
   };
 
@@ -189,6 +203,11 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
 
     if ((editUser.role === 'chapter_head' || editUser.role === 'member') && !editUser.chapterId) {
       await showAlert('Chapter ID is required for chapter heads and members');
+      return;
+    }
+
+    if (editUser.role === 'pillar_editor' && !editUser.pillarId) {
+      await showAlert('Pillar ID is required for pillar editors');
       return;
     }
 
@@ -443,7 +462,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                         setNewUser({
                           ...newUser,
                           role: nextRole,
-                          chapterId: nextRole === 'admin' ? '' : newUser.chapterId
+                          chapterId: nextRole === 'admin' || nextRole === 'pillar_editor' ? '' : newUser.chapterId,
+                          pillarId: nextRole === 'pillar_editor' ? newUser.pillarId : ''
                         });
                       }}
                       options={roleOptions}
@@ -452,7 +472,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                   </div>
 
                   {/* ✅ THE "ADD CHAPTER" FUNCTIONALITY IS HERE */}
-                  {newUser.role !== 'admin' && (
+                  {newUser.role !== 'admin' && newUser.role !== 'pillar_editor' && (
                     <div className="bg-primary-blue/10 border border-primary-blue/30 rounded-lg p-3">
                       <label className="block text-xs font-bold text-primary-blue dark:text-primary-cyan uppercase mb-1">
                         Chapter ID {newUser.role === 'editor' ? '(Optional)' : '(Required)'}
@@ -467,6 +487,18 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                       <p className="text-[10px] text-primary-blue/80 dark:text-primary-cyan/80 mt-1">
                         `editor` without a chapter is global. `editor`, `chapter_head`, and `member` with a chapter are scoped to that chapter.
                       </p>
+                    </div>
+                  )}
+                  {newUser.role === 'pillar_editor' && (
+                    <div className="bg-primary-blue/10 border border-primary-blue/30 rounded-lg p-3">
+                      <label className="block text-xs font-bold text-primary-blue dark:text-primary-cyan uppercase mb-1">Pillar ID (Required)</label>
+                      <input
+                        type="text"
+                        value={newUser.pillarId}
+                        onChange={(e) => setNewUser({ ...newUser, pillarId: e.target.value, chapterId: '' })}
+                        className="w-full px-4 py-2 bg-white dark:bg-black/20 border border-primary-blue/30 rounded-lg text-ocean-deep dark:text-white text-sm font-mono"
+                        placeholder="e.g. research-and-education"
+                      />
                     </div>
                   )}
                 </div>
@@ -532,7 +564,8 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                         setEditUser({
                           ...editUser,
                           role: nextRole,
-                          chapterId: nextRole === 'admin' ? '' : editUser.chapterId
+                          chapterId: nextRole === 'admin' || nextRole === 'pillar_editor' ? '' : editUser.chapterId,
+                          pillarId: nextRole === 'pillar_editor' ? editUser.pillarId : ''
                         });
                       }}
                       options={roleOptions}
@@ -540,7 +573,7 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                     />
                   </div>
 
-                  {editUser.role !== 'admin' && (
+                  {editUser.role !== 'admin' && editUser.role !== 'pillar_editor' && (
                     <div className="bg-primary-blue/10 border border-primary-blue/30 rounded-lg p-3">
                       <label className="block text-xs font-bold text-primary-blue dark:text-primary-cyan uppercase mb-1">
                         Chapter ID {editUser.role === 'editor' ? '(Optional)' : '(Required)'}
@@ -555,6 +588,17 @@ export const UserManagement: React.FC<UserManagementProps> = ({ onBack }) => {
                       <p className="text-[10px] text-primary-blue/80 dark:text-primary-cyan/80 mt-1">
                         `editor` without a chapter is global. `editor`, `chapter_head`, and `member` with a chapter are scoped to that chapter.
                       </p>
+                    </div>
+                  )}
+                  {editUser.role === 'pillar_editor' && (
+                    <div className="bg-primary-blue/10 border border-primary-blue/30 rounded-lg p-3">
+                      <label className="block text-xs font-bold text-primary-blue dark:text-primary-cyan uppercase mb-1">Pillar ID (Required)</label>
+                      <input
+                        type="text"
+                        value={editUser.pillarId}
+                        onChange={(e) => setEditUser({ ...editUser, pillarId: e.target.value, chapterId: '' })}
+                        className="w-full px-4 py-2 bg-white dark:bg-black/20 border border-primary-blue/30 rounded-lg text-ocean-deep dark:text-white text-sm font-mono"
+                      />
                     </div>
                   )}
                 </div>

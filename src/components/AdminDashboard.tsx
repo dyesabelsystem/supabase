@@ -39,10 +39,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const { showAlert } = useAppDialog();
   const isAdmin = user?.role === 'admin';
   const isGlobalEditor = user?.role === 'editor' && !user?.chapterId;
-  const isScopedUser = !!user?.chapterId;
+  const isPillarEditor = user?.role === 'pillar_editor' && !!user?.pillarId;
+  const isScopedUser = !!user?.chapterId || isPillarEditor;
   const canEdit = isAdmin || isGlobalEditor;
   const canAccessDashboard = canEdit || isScopedUser;
-  const canEditPillars = canEdit;
+  const canEditPillars = canEdit || isPillarEditor;
   const canEditPartners = canEdit;
   const canEditFounders = isAdmin;
   const canEditDonations = isAdmin;
@@ -113,13 +114,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         await showAlert('Session expired. Please login again.');
         return;
       }
-      setPillars(updatedPillars);
       const result = await DataService.savePillars(updatedPillars, sessionToken);
       if (!result.success) {
-        await showAlert('Error saving pillars: ' + (result.error || 'Unknown error'));
+        throw new Error(result.error || 'Unknown error');
       }
+      setPillars(updatedPillars);
     } catch (error) {
-      await showAlert('Error saving pillars: ' + (error instanceof Error ? error.message : String(error)));
+      throw error instanceof Error ? error : new Error(String(error));
     }
   };
 
@@ -371,10 +372,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     Core Pillars
                   </h3>
                   <p className="text-sm text-ocean-deep/60 dark:text-gray-400 mb-3">
-                    {isGlobalEditor ? 'Manage only the activity entries for each pillar' : 'Edit the 5 core pillars and their activities'}
+                    {isPillarEditor
+                      ? 'Edit only your assigned pillar and its activities'
+                      : isGlobalEditor
+                        ? 'Manage only the activity entries for each pillar'
+                        : 'Edit the 5 core pillars and their activities'}
                   </p>
                   <div className="text-xs text-ocean-deep/40 dark:text-gray-500">
-                    {pillars.length} pillars | {pillars.reduce((sum: number, p: any) => sum + (p.activities?.length || 0), 0)} activities
+                    {isPillarEditor
+                      ? `Assigned pillar: ${pillars.find((pillar: any) => String(pillar.id) === String(user?.pillarId))?.title || user?.pillarId}`
+                      : `${pillars.length} pillars | ${pillars.reduce((sum: number, p: any) => sum + (p.activities?.length || 0), 0)} activities`}
                   </div>
                 </button>
               )}

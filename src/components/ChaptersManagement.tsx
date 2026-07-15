@@ -76,6 +76,7 @@ interface UserEditorFormState {
   password: string;
   role: string;
   chapterId: string;
+  pillarId: string;
 }
 
 interface ChaptersManagementProps {
@@ -91,6 +92,7 @@ const chapterRoleOptions: CustomSelectOption[] = [
 const allRoleOptions: CustomSelectOption[] = [
   { value: 'member', label: 'Member', description: 'Basic chapter account' },
   { value: 'editor', label: 'Editor', description: 'Can edit content globally or by chapter' },
+  { value: 'pillar_editor', label: 'Pillar Editor', description: 'Can edit one assigned pillar only' },
   { value: 'chapter_head', label: 'Chapter Head', description: 'Leads a local chapter' },
   { value: 'admin', label: 'Admin', description: 'Full system access' }
 ];
@@ -134,6 +136,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
   const [activeMemberSubTab, setActiveMemberSubTab] = useState<MemberSubTabState>('GENERAL');
   const [chapters, setChapters] = useState<Chapter[]>(() => initialCache?.chapters || []);
   const [users, setUsers] = useState<User[]>(() => initialCache?.users || []); 
+  const [pillars, setPillars] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(() => !initialCache);
   
   // --- Selected Item State ---
@@ -148,7 +151,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     email: '',
     password: '',
     role: 'member',
-    chapterId: ''
+    chapterId: '',
+    pillarId: ''
   });
   const [isSavingUser, setIsSavingUser] = useState(false);
   const [isSavingChapter, setIsSavingChapter] = useState(false);
@@ -218,10 +222,13 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     try {
       const token = getSessionToken() || '';
 
-      const [chapRes, userRes] = await Promise.all([
+      const [chapRes, userRes, pillarRes] = await Promise.all([
         DataService.listChapters(),
-        AuthService.listUsers(token)
+        AuthService.listUsers(token),
+        DataService.loadPillars()
       ]);
+
+      if (pillarRes.success && Array.isArray(pillarRes.pillars)) setPillars(pillarRes.pillars);
 
       const nextChapters = chapRes.success && chapRes.chapters ? chapRes.chapters : (hasCachedData ? cached!.chapters : []);
       const nextUsers = userRes.success && userRes.users ? userRes.users : (hasCachedData ? cached!.users : []);
@@ -609,11 +616,17 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     }
 
     const isAdminRole = userEditorForm.role === 'admin';
-    const assignedChapterId = isAdminRole ? '' : String(userEditorForm.chapterId || '');
+    const isPillarEditorRole = userEditorForm.role === 'pillar_editor';
+    const assignedChapterId = isAdminRole || isPillarEditorRole ? '' : String(userEditorForm.chapterId || '');
+    const assignedPillarId = isPillarEditorRole ? String(userEditorForm.pillarId || '') : '';
     const requiresChapter = userEditorForm.role === 'chapter_head' || userEditorForm.role === 'member';
 
     if (requiresChapter && !assignedChapterId) {
       await showAlert('Chapter assignment is required for chapter heads and members.');
+      return;
+    }
+    if (isPillarEditorRole && !assignedPillarId) {
+      await showAlert('Pillar assignment is required for pillar editors.');
       return;
     }
 
@@ -629,7 +642,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         email: userEditorForm.email,
         password: userEditorForm.password,
         role: userEditorForm.role,
-        chapterId: assignedChapterId
+        chapterId: assignedChapterId,
+        pillarId: assignedPillarId
       };
       const res = await AuthService.createUser(token, payload);
 
@@ -664,9 +678,15 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
     }
 
     const isAdminRole = userEditorForm.role === 'admin';
-    const assignedChapterId = isAdminRole ? '' : String(userEditorForm.chapterId || '');
+    const isPillarEditorRole = userEditorForm.role === 'pillar_editor';
+    const assignedChapterId = isAdminRole || isPillarEditorRole ? '' : String(userEditorForm.chapterId || '');
+    const assignedPillarId = isPillarEditorRole ? String(userEditorForm.pillarId || '') : '';
     if (!isAdminRole && (userEditorForm.role === 'chapter_head' || userEditorForm.role === 'member') && !assignedChapterId) {
       await showAlert('Chapter assignment is required for chapter heads and members.');
+      return;
+    }
+    if (isPillarEditorRole && !assignedPillarId) {
+      await showAlert('Pillar assignment is required for pillar editors.');
       return;
     }
 
@@ -683,7 +703,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         username: userEditorForm.username,
         email: userEditorForm.email,
         role: userEditorForm.role,
-        chapterId: assignedChapterId
+        chapterId: assignedChapterId,
+        pillarId: assignedPillarId
       });
 
       if (!updateRes.success) {
@@ -721,7 +742,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         email: '',
         password: '',
         role: 'member',
-        chapterId: ''
+        chapterId: '',
+        pillarId: ''
       });
     }, modalTransitionMs);
   };
@@ -744,7 +766,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       email: '',
       password: '',
       role: 'member',
-      chapterId: selectedChapter.id
+      chapterId: selectedChapter.id,
+      pillarId: ''
     });
     openUserModal_();
   };
@@ -757,7 +780,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       email: '',
       password: '',
       role: 'member',
-      chapterId: selectedChapter?.id || ''
+      chapterId: selectedChapter?.id || '',
+      pillarId: ''
     });
     openUserModal_();
   };
@@ -771,15 +795,18 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       email: user.email,
       password: '',
       role: user.role,
-      chapterId: user.chapterId || ''
+      chapterId: user.chapterId || '',
+      pillarId: user.pillarId || ''
     });
     openUserModal_();
   };
 
   const handleAssignGeneralUserToSelectedChapter = async (user: User) => {
     if (!selectedChapter) return;
-    if (user.role === 'admin') {
-      await showAlert('Admin accounts cannot be assigned to a chapter.');
+    if (user.role === 'admin' || user.role === 'pillar_editor') {
+      await showAlert(user.role === 'admin'
+        ? 'Admin accounts cannot be assigned to a chapter.'
+        : 'Pillar editors cannot be assigned to a chapter.');
       return;
     }
     const token = getSessionToken();
@@ -793,7 +820,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         username: user.username,
         email: user.email,
         role: user.role,
-        chapterId: selectedChapter.id
+        chapterId: selectedChapter.id,
+        pillarId: ''
       });
       if (!res.success) {
         await showAlert('Failed to assign user: ' + res.message);
@@ -1653,6 +1681,8 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                                         <span className={`px-2 py-1 rounded text-xs border ${
                                           user.role === 'admin'
                                             ? 'bg-purple-500/20 text-purple-300 border-purple-500/20'
+                                            : user.role === 'pillar_editor'
+                                            ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/20'
                                             : user.role === 'editor'
                                             ? 'bg-blue-500/20 text-blue-300 border-blue-500/20'
                                             : user.role === 'chapter_head'
@@ -1739,15 +1769,23 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                                         </span>
                                       </td>
                                       <td className="px-6 py-4 text-white/60 text-sm">{user.email}</td>
-                                      <td className="px-6 py-4 text-white/40 text-sm">No chapter assigned</td>
+                                      <td className="px-6 py-4 text-white/40 text-sm">
+                                        {user.role === 'pillar_editor'
+                                          ? `Pillar: ${pillars.find((pillar) => String(pillar.id) === String(user.pillarId))?.title || user.pillarId || 'Unassigned'}`
+                                          : 'No chapter assigned'}
+                                      </td>
                                       <td className="px-6 py-4">
                                         <div className="flex items-center justify-end gap-3">
                                           <button
                                             onClick={() => handleAssignGeneralUserToSelectedChapter(user)}
-                                            disabled={user.role === 'admin'}
+                                            disabled={user.role === 'admin' || user.role === 'pillar_editor'}
                                             className="text-xs px-3 py-1.5 rounded-md border border-primary-cyan/40 text-primary-cyan hover:bg-primary-cyan/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                                           >
-                                            {user.role === 'admin' ? 'Admins stay global' : `Assign to ${selectedChapter?.name}`}
+                                            {user.role === 'admin'
+                                              ? 'Admins stay global'
+                                              : user.role === 'pillar_editor'
+                                                ? 'Pillar-scoped account'
+                                                : `Assign to ${selectedChapter?.name}`}
                                           </button>
                                           <button
                                             onClick={() => openEditUserModal(user)}
@@ -1950,7 +1988,12 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                     <Shield size={16} className="absolute left-3 top-3 text-primary-cyan pointer-events-none" />
                     <CustomSelect
                       value={userEditorForm.role}
-                      onChange={(nextValue) => setUserEditorForm({ ...userEditorForm, role: nextValue })}
+                      onChange={(nextValue) => setUserEditorForm({
+                        ...userEditorForm,
+                        role: nextValue,
+                        chapterId: nextValue === 'admin' || nextValue === 'pillar_editor' ? '' : userEditorForm.chapterId,
+                        pillarId: nextValue === 'pillar_editor' ? userEditorForm.pillarId : ''
+                      })}
                       options={allRoleOptions}
                       ariaLabel="Chapter member role"
                       variant="dark"
@@ -1959,7 +2002,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                   </div>
                </div>
 
-               {userEditorForm.role !== 'admin' && (
+               {userEditorForm.role !== 'admin' && userEditorForm.role !== 'pillar_editor' && (
                  <div className="pt-2">
                    <label className="block text-xs font-bold text-white/60 mb-1 uppercase">Chapter Assignment</label>
                    <CustomSelect
@@ -1971,6 +2014,23 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
                        description: chapter.location || 'No location'
                      }))}
                      ariaLabel="Chapter assignment"
+                     variant="dark"
+                   />
+                 </div>
+               )}
+
+               {userEditorForm.role === 'pillar_editor' && (
+                 <div className="pt-2">
+                   <label className="block text-xs font-bold text-white/60 mb-1 uppercase">Pillar Assignment</label>
+                   <CustomSelect
+                     value={userEditorForm.pillarId}
+                     onChange={(nextValue) => setUserEditorForm({ ...userEditorForm, pillarId: nextValue, chapterId: '' })}
+                     options={pillars.map(pillar => ({
+                       value: String(pillar.id),
+                       label: String(pillar.title || pillar.id),
+                       description: 'Only this pillar can be edited'
+                     }))}
+                     ariaLabel="Pillar assignment"
                      variant="dark"
                    />
                  </div>

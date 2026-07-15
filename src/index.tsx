@@ -4,6 +4,8 @@ import { Toaster, toast } from 'sonner';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
+import { AppDialogProvider } from './contexts/AppDialogContext';
+import { AuthProvider } from './contexts/AuthContext';
 import './index.css'; // Ensure your global styles are imported
 
 const applyInitialTheme = () => {
@@ -80,7 +82,11 @@ root.render(
   <React.StrictMode>
     <ErrorBoundary>
       <Toaster position="bottom-right" closeButton visibleToasts={5} offset={20} />
-      <App />
+      <AuthProvider>
+        <AppDialogProvider>
+          <App />
+        </AppDialogProvider>
+      </AuthProvider>
     </ErrorBoundary>
   </React.StrictMode>
 );

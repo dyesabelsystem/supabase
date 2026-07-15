@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const GAS_URL =
   Deno.env.get("DRIVE_GAS_URL") ||
@@ -11,28 +12,51 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-function getClaims(request: Request): Record<string, unknown> {
-  const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
-  const payload = token.split(".")[1] || "";
-  try {
-    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-  } catch {
-    return {};
-  }
-}
-
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
     if (!CRUD_SECRET) throw new Error("DRIVE_CRUD_SECRET is not configured in Supabase.");
-    const claims = getClaims(request);
-    const appMetadata = (claims.app_metadata || {}) as Record<string, unknown>;
-    if (!["admin", "editor", "chapter_head"].includes(String(appMetadata.role || ""))) {
+    const payload = await request.json();
+    const token = (request.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      { auth: { persistSession: false } },
+    );
+    const { data: userData, error: userError } = await admin.auth.getUser(token);
+    if (userError || !userData.user) {
+      return Response.json({ success: false, error: "Unauthorized." }, { status: 401, headers: corsHeaders });
+    }
+
+    const appMetadata = userData.user.app_metadata || {};
+    const role = String(appMetadata.role || "");
+    if (!["admin", "editor", "chapter_head", "pillar_editor"].includes(role)) {
       return Response.json({ success: false, error: "Forbidden." }, { status: 403, headers: corsHeaders });
     }
 
-    const payload = await request.json();
+    if (role === "pillar_editor") {
+      const action = String(payload.action || "").toLowerCase();
+      const pillarId = String(appMetadata.pillar_id || "").trim();
+      if (!pillarId || !["upload", "delete"].includes(action)) {
+        return Response.json({ success: false, error: "Pillar editors can only upload or replace images for their assigned pillar." }, { status: 403, headers: corsHeaders });
+      }
+      if (action === "delete") {
+        const fileId = String(payload.fileId || "").trim();
+        const { data: content, error: contentError } = await admin
+          .from("site_content")
+          .select("data")
+          .eq("content_key", "pillars")
+          .single();
+        if (contentError) throw contentError;
+        const pillars = Array.isArray(content.data) ? content.data : [];
+        const assignedPillar = pillars.find((pillar: Record<string, unknown>) => String(pillar?.id || "") === pillarId);
+        if (!fileId || !assignedPillar || !JSON.stringify(assignedPillar).includes(fileId)) {
+          return Response.json({ success: false, error: "That image does not belong to the assigned pillar." }, { status: 403, headers: corsHeaders });
+        }
+      }
+    }
+
     const gasResponse = await fetch(GAS_URL, {
       method: "POST",
       redirect: "follow",

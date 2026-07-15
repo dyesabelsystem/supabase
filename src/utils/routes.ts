@@ -4,6 +4,8 @@ export const HOME_PATH = '/home';
 export const LOGIN_PATH = '/login';
 export const RESET_PASSWORD_PATH = '/reset-password';
 export const DONATE_PATH = '/donate';
+export const PRIVACY_POLICY_PATH = '/privacy-policy';
+export const TERMS_OF_SERVICE_PATH = '/terms-of-service';
 
 const DASHBOARD_BASE_PATH = '/dashboard';
 const CHAPTERS_BASE_PATH = '/chapters';
@@ -15,6 +17,8 @@ export type ParsedAppRoute =
   | { type: 'login' }
   | { type: 'reset-password' }
   | { type: 'donate' }
+  | { type: 'privacy-policy' }
+  | { type: 'terms-of-service' }
   | { type: 'dashboard'; roleSlug: string; usernameSlug: string }
   | { type: 'chapter'; chapterId: string; chapterSlug: string }
   | { type: 'pillar'; pillarId: string; pillarSlug: string }
@@ -34,7 +38,10 @@ export const slugifyRouteSegment = (value: string): string => {
 
 export const canUserAccessDashboard = (user: User | null | undefined): boolean => {
   if (!user) return false;
-  return user.role === 'admin' || (user.role === 'editor' && !user.chapterId) || !!user.chapterId;
+  return user.role === 'admin'
+    || (user.role === 'editor' && !user.chapterId)
+    || user.role === 'pillar_editor'
+    || !!user.chapterId;
 };
 
 export const buildDashboardPath = (user: Pick<User, 'role' | 'username'>): string => {
@@ -61,6 +68,8 @@ export const parseAppPath = (pathname: string): ParsedAppRoute => {
   if (normalizedPath === LOGIN_PATH) return { type: 'login' };
   if (normalizedPath === RESET_PASSWORD_PATH) return { type: 'reset-password' };
   if (normalizedPath === DONATE_PATH) return { type: 'donate' };
+  if (normalizedPath === PRIVACY_POLICY_PATH) return { type: 'privacy-policy' };
+  if (normalizedPath === TERMS_OF_SERVICE_PATH) return { type: 'terms-of-service' };
 
   const dashboardMatch = normalizedPath.match(/^\/dashboard\/([^/]+)\/([^/]+)$/);
   if (dashboardMatch) {

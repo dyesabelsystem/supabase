@@ -10,7 +10,7 @@ import { uploadImageToDrive } from '../utils/driveUpload';
 
 interface PillarsEditorProps {
   pillars: Pillar[];
-  onSave: (pillars: Pillar[]) => void;
+  onSave: (pillars: Pillar[]) => void | Promise<void>;
   onClose: () => void;
   activitiesOnly?: boolean;
 }
@@ -69,11 +69,21 @@ function toImpactAreasInput_(areas?: string[]) {
 export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, onClose, activitiesOnly = false }) => {
   const { user } = useAuth();
   const { showAlert, showConfirm } = useAppDialog();
-  const canEdit = !!user && (user.role === 'admin' || (user.role === 'editor' && !user.chapterId));
+  const assignedPillarIndex = user?.role === 'pillar_editor'
+    ? pillars.findIndex((pillar) => String(pillar.id) === String(user.pillarId))
+    : -1;
+  const isPillarEditor = user?.role === 'pillar_editor' && assignedPillarIndex >= 0;
+  const canEdit = !!user && (user.role === 'admin' || (user.role === 'editor' && !user.chapterId) || isPillarEditor);
+  const accessiblePillarIndexes = isPillarEditor
+    ? [assignedPillarIndex]
+    : pillars.map((_, index) => index);
   const [editedPillars, setEditedPillars] = useState<Pillar[]>(pillars);
   const [persistedPillars, setPersistedPillars] = useState<Pillar[]>(pillars);
-  const [selectedPillarIndex, setSelectedPillarIndex] = useState<number>(0);
-  const [impactAreasDraft, setImpactAreasDraft] = useState<string>(() => toImpactAreasInput_(pillars[0] && pillars[0].impactAreas));
+  const [selectedPillarIndex, setSelectedPillarIndex] = useState<number>(() => assignedPillarIndex >= 0 ? assignedPillarIndex : 0);
+  const [impactAreasDraft, setImpactAreasDraft] = useState<string>(() => {
+    const initialIndex = assignedPillarIndex >= 0 ? assignedPillarIndex : 0;
+    return toImpactAreasInput_(pillars[initialIndex] && pillars[initialIndex].impactAreas);
+  });
   const [saving, setSaving] = useState(false);
   const [visibleActivityCount, setVisibleActivityCount] = useState<Record<string, number>>({});
   const [activeActivityEditor, setActiveActivityEditor] = useState<{ pillarIndex: number; activityIndex: number | null; isNew: boolean } | null>(null);
@@ -345,7 +355,8 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
   };
 
   const currentPillar = editedPillars[selectedPillarIndex];
-  const pillarOptions = editedPillars.map(function(pillar, index) {
+  const pillarOptions = accessiblePillarIndexes.map(function(index) {
+    const pillar = editedPillars[index];
     return {
       value: String(index),
       label: pillar.title || ('Pillar ' + (index + 1)),
@@ -370,7 +381,11 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
             <div>
               <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Edit Pillars</h2>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                {activitiesOnly ? 'Manage activities for each core pillar' : "Manage your organization's core pillars and activities"}
+                {isPillarEditor
+                  ? `Manage your assigned pillar: ${currentPillar.title}`
+                  : activitiesOnly
+                    ? 'Manage activities for each core pillar'
+                    : "Manage your organization's core pillars and activities"}
               </p>
             </div>
             <button
@@ -403,7 +418,9 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
               </div>
 
               <div className="hidden space-y-2 lg:block">
-                {editedPillars.map((pillar, index) => (
+                {accessiblePillarIndexes.map((index) => {
+                  const pillar = editedPillars[index];
+                  return (
                   <button
                     key={pillar.id}
                     onClick={() => handleSelectPillar_(index)}
@@ -420,7 +437,8 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
                       <span className="text-sm font-medium">{pillar.title}</span>
                     </div>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
 

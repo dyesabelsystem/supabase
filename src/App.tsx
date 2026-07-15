@@ -13,12 +13,12 @@ import { DonatePage } from './components/DonatePage';
 import { PillarDetail } from './components/PillarDetail';
 import { ChapterDetail } from './components/ChapterDetail';
 import { ChatbotWidget } from './components/ChatbotWidget';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { AppDialogProvider } from './contexts/AppDialogContext';
+import { LegalPage } from './components/LegalPage';
+import { useAuth } from './contexts/AuthContext';
 import { AppView, patchPersistedAppState, readPersistedAppState } from './utils/appState';
 import { Chapter, ExecutiveOfficer, Pillar, User } from './types';
 import { DataService, getImageDebugInfo } from './services/DriveService';
-import { getSessionUser } from './utils/session';
+import { getSessionToken, getSessionUser } from './utils/session';
 import { BookOpen, Heart, Leaf, Palette, Scale } from 'lucide-react';
 import { APP_CONFIG } from './config';
 import {
@@ -33,7 +33,9 @@ import {
   isDashboardRouteForUser,
   isPillarRouteForPillar,
   LOGIN_PATH,
-  parseAppPath
+  parseAppPath,
+  PRIVACY_POLICY_PATH,
+  TERMS_OF_SERVICE_PATH
 } from './utils/routes';
 
 const LoginModal = lazy(() => import('./components/LoginModal').then((module) => ({ default: module.LoginModal })));
@@ -138,7 +140,7 @@ function AppContent() {
   const { user, isAuthenticated, isLoading: isAuthLoading } = useAuth();
   const isAdmin = user?.role === 'admin';
   const isGlobalEditor = user?.role === 'editor' && !user?.chapterId;
-  const isScopedDashboardUser = !!user?.chapterId;
+  const isScopedDashboardUser = !!user?.chapterId || (user?.role === 'pillar_editor' && !!user?.pillarId);
   const canAccessDashboard = isAdmin || isGlobalEditor || isScopedDashboardUser;
 
   const [theme, setTheme] = useState(readStoredTheme);
@@ -165,6 +167,7 @@ function AppContent() {
   const currentViewRef = useRef<AppView>('home');
   const scrollSaveTimer = useRef<number | null>(null);
   const currentRoute = parseAppPath(pathname);
+  const isLegalPage = currentRoute.type === 'privacy-policy' || currentRoute.type === 'terms-of-service';
 
   const selectedChapter = useMemo(
     () => chapters.find((chapter) => String(chapter.id) === String(selectedChapterId)) || null,
@@ -192,10 +195,12 @@ function AppContent() {
     if (isLoginModalOpen) return 'Login';
     if (showDashboard) return user ? `${user.username} ${user.role.replace('_', ' ')}` : 'Dashboard';
     if (isDonatePageOpen) return 'Donate';
+    if (currentRoute.type === 'privacy-policy') return 'Privacy Policy';
+    if (currentRoute.type === 'terms-of-service') return 'Terms of Service';
     if (selectedChapter) return selectedChapter.name;
     if (selectedPillar) return selectedPillar.title;
     return 'Home';
-  }, [isDonatePageOpen, isLoginModalOpen, selectedChapter, selectedPillar, showDashboard, user]);
+  }, [currentRoute.type, isDonatePageOpen, isLoginModalOpen, selectedChapter, selectedPillar, showDashboard, user]);
 
   const seoMetadata = useMemo(() => {
     const routePath = normalizeSeoPath(pathname || SEO_HOME_PATH);
@@ -221,6 +226,20 @@ function AppContent() {
         SEO_BASE_KEYWORDS,
         ['donate to non-profit Philippines', 'donate Davao City', 'support youth advocacy Philippines']
       );
+      return metadata;
+    }
+
+    if (routeType === 'privacy-policy') {
+      metadata.title = 'Privacy Policy - Dyesabel Philippines';
+      metadata.description = 'Learn how DYESABEL PH Inc. collects, uses, shares, stores, and protects personal data through its website and related services.';
+      metadata.keywords = joinSeoKeywords(SEO_BASE_KEYWORDS, ['DYESABEL privacy policy', 'data privacy Philippines']);
+      return metadata;
+    }
+
+    if (routeType === 'terms-of-service') {
+      metadata.title = 'Terms of Service - Dyesabel Philippines';
+      metadata.description = 'Read the terms that apply to the DYESABEL PH Inc. website, accounts, chatbot, donation information, and linked services.';
+      metadata.keywords = joinSeoKeywords(SEO_BASE_KEYWORDS, ['DYESABEL terms of service', 'website terms Philippines']);
       return metadata;
     }
 
@@ -285,7 +304,9 @@ function AppContent() {
     return metadata;
   }, [currentPageLabel, currentRoute.type, pathname, selectedChapter, selectedPillar]);
 
-  const currentView: AppView = showDashboard
+  const currentView: AppView = isLegalPage
+    ? 'legal'
+    : showDashboard
     ? 'dashboard'
     : isDonatePageOpen
       ? 'donate'
@@ -342,6 +363,16 @@ function AppContent() {
     setIsLoginModalOpen(currentRoute.type === 'login');
 
     if (currentRoute.type === 'home' || currentRoute.type === 'root' || currentRoute.type === 'unknown') {
+      startTransition(() => {
+        setIsDonatePageOpen(false);
+        setShowDashboard(false);
+        setSelectedChapterId(null);
+        setSelectedPillarId(null);
+      });
+      return;
+    }
+
+    if (currentRoute.type === 'privacy-policy' || currentRoute.type === 'terms-of-service') {
       startTransition(() => {
         setIsDonatePageOpen(false);
         setShowDashboard(false);
@@ -410,7 +441,7 @@ function AppContent() {
       window.clearTimeout(timeoutId);
       observer.disconnect();
     };
-  }, [displayPillars, chapters, selectedChapterId, selectedPillarId, isDonatePageOpen, showDashboard, isLoading]);
+  }, [displayPillars, chapters, selectedChapterId, selectedPillarId, isDonatePageOpen, isLegalPage, showDashboard, isLoading]);
 
   useEffect(() => {
     const loadAllData = async () => {
@@ -537,7 +568,9 @@ function AppContent() {
     hasHydratedNavigationState.current = true;
 
     const routeDrivenView: AppView =
-      currentRoute.type === 'donate'
+      currentRoute.type === 'privacy-policy' || currentRoute.type === 'terms-of-service'
+        ? 'legal'
+        : currentRoute.type === 'donate'
         ? 'donate'
         : currentRoute.type === 'dashboard'
           ? 'dashboard'
@@ -817,6 +850,7 @@ function AppContent() {
     if (
       storedUser.role === 'admin' ||
       (storedUser.role === 'editor' && !storedUser.chapterId) ||
+      (storedUser.role === 'pillar_editor' && !!storedUser.pillarId) ||
       !!storedUser.chapterId
     ) {
       handleOpenDashboard();
@@ -830,6 +864,26 @@ function AppContent() {
         handleSelectChapter(matchedChapter);
       }
     }
+  };
+
+  const handleLegalNavigation = (path: string) => {
+    const legalPath = path === TERMS_OF_SERVICE_PATH ? TERMS_OF_SERVICE_PATH : PRIVACY_POLICY_PATH;
+    closeEditors();
+    startTransition(() => {
+      setIsLoginModalOpen(false);
+      setIsDonatePageOpen(false);
+      setSelectedChapterId(null);
+      setSelectedPillarId(null);
+      setShowDashboard(false);
+    });
+    navigateTo(legalPath);
+    patchPersistedAppState({
+      view: 'legal',
+      selectedChapterId: null,
+      selectedPillarId: null,
+      scrollPositions: { legal: 0 }
+    });
+    window.scrollTo(0, 0);
   };
 
   if (currentRoute.type === 'reset-password') {
@@ -881,7 +935,11 @@ function AppContent() {
           ) : isPillarEditorOpen ? (
             <PillarsEditor
               pillars={displayPillars}
-              onSave={(nextPillars) => {
+              onSave={async (nextPillars) => {
+                const sessionToken = getSessionToken();
+                if (!sessionToken) throw new Error('Session expired. Please log in again.');
+                const result = await DataService.savePillars(nextPillars, sessionToken);
+                if (!result.success) throw new Error(result.error || 'Unable to save pillars.');
                 setPillars(nextPillars);
                 setIsPillarEditorOpen(false);
               }}
@@ -900,6 +958,10 @@ function AppContent() {
                 <h2 className="text-2xl font-bold">Access Denied</h2>
               </div>
             )
+          ) : currentRoute.type === 'privacy-policy' ? (
+            <LegalPage type="privacy" onBack={handleBackToHome} onNavigate={handleLegalNavigation} />
+          ) : currentRoute.type === 'terms-of-service' ? (
+            <LegalPage type="terms" onBack={handleBackToHome} onNavigate={handleLegalNavigation} />
           ) : isDonatePageOpen ? (
             <DonatePage onBack={handleBackToHome} />
           ) : selectedPillar ? (
@@ -945,7 +1007,7 @@ function AppContent() {
       </main>
 
       {!isDonatePageOpen && !showDashboard && !isLandingEditorOpen && !isChapterEditorOpen && !isPillarEditorOpen && !isPartnersEditorOpen && !isFoundersEditorOpen && (
-        <Footer onDonateClick={handleDonateClick} onNavigate={handleFooterNavigation} />
+        <Footer onDonateClick={handleDonateClick} onNavigate={handleFooterNavigation} onLegalNavigate={handleLegalNavigation} />
       )}
 
       <ChatbotWidget
@@ -1005,14 +1067,4 @@ function AppContent() {
   );
 }
 
-function App() {
-  return (
-    <AuthProvider>
-      <AppDialogProvider>
-        <AppContent />
-      </AppDialogProvider>
-    </AuthProvider>
-  );
-}
-
-export default App;
+export default AppContent;

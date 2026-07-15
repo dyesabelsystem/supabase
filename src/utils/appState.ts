@@ -1,4 +1,4 @@
-export type AppView = 'home' | 'chapter' | 'pillar' | 'donate' | 'dashboard';
+export type AppView = 'home' | 'chapter' | 'pillar' | 'donate' | 'legal' | 'dashboard';
 
 export interface PersistedAppState {
   view: AppView;

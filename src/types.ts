@@ -123,7 +123,7 @@ export interface Pillar {
 // USER & AUTHENTICATION TYPES & CONSTANTS
 // ==========================================
 
-export type UserRole = 'admin' | 'editor' | 'chapter_head' | 'member';
+export type UserRole = 'admin' | 'editor' | 'pillar_editor' | 'chapter_head' | 'member';
 
 export interface User {
   id: string;
@@ -131,6 +131,7 @@ export interface User {
   email: string;
   role: UserRole;
   chapterId?: string;
+  pillarId?: string;
 }
 
 // Storage keys
@@ -138,12 +139,13 @@ export const SESSION_TOKEN_KEY = 'dyesabel_session';
 export const USER_STORAGE_KEY = 'dyesabel_user';
 
 // Available user roles (for dropdowns, etc.)
-export const USER_ROLES = ['member', 'editor', 'chapter_head', 'admin'] as const;
+export const USER_ROLES = ['member', 'editor', 'pillar_editor', 'chapter_head', 'admin'] as const;
 
 // Role display labels
 export const ROLE_LABELS: Record<UserRole, string> = {
   admin: 'Admin',
   editor: 'Editor',
+  pillar_editor: 'Pillar Editor',
   chapter_head: 'Chapter Head',
   member: 'Member'
 };
@@ -152,6 +154,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
 export const ROLE_COLORS: Record<UserRole, string> = {
   admin: 'bg-red-500',
   editor: 'bg-blue-500',
+  pillar_editor: 'bg-cyan-600',
   chapter_head: 'bg-green-500',
   member: 'bg-gray-500'
 };

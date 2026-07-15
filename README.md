@@ -15,6 +15,7 @@ View your app in AI Studio: https://ai.studio/apps/drive/1zSel277jS2ZW4VPGV9FfCB
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
+2. Set `VITE_CHATBOT_GAS_URL` in [.env.local](.env.local) to the deployed GAS web-app URL (it falls back to `VITE_DRIVE_IMAGE_API_URL` when both services share one GAS deployment).
+3. Store `GEMINI_API_KEYS` in the GAS project's Script Properties. Never place Gemini keys in a `VITE_*` variable.
+4. Run the app:
    `npm run dev`

@@ -95,6 +95,7 @@ export const AuthService = {
     email: string;
     role: string;
     chapterId?: string;
+    pillarId?: string;
   }) => {
     return sendUsersRequest<{ user: User }>({
       action: 'createUser',
@@ -109,6 +110,7 @@ export const AuthService = {
     email: string;
     role: string;
     chapterId?: string;
+    pillarId?: string;
   }) => {
     return sendUsersRequest<{ user: User }>({
       action: 'updateUser',

@@ -7,6 +7,7 @@ export const APP_CONFIG = {
   supabaseUrl: readEnv('VITE_SUPABASE_URL'),
   supabasePublishableKey: readEnv('VITE_SUPABASE_PUBLISHABLE_KEY'),
   driveImageApiUrl: readEnv('VITE_DRIVE_IMAGE_API_URL'),
+  chatbotGasUrl: readEnv('VITE_CHATBOT_GAS_URL') || readEnv('VITE_DRIVE_IMAGE_API_URL'),
   organizationName: readEnv('VITE_ORGANIZATION_NAME') || 'DYESABEL PH Inc.',
   supportEmail: readEnv('VITE_SUPPORT_EMAIL') || 'projectdyesabel@gmail.com',
   supportPhone: readEnv('VITE_SUPPORT_PHONE'),

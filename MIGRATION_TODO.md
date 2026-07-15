@@ -9,12 +9,12 @@
 - [ ] Replace synthetic `@legacy.invalid` addresses for the three profiles without valid legacy email addresses
 - [ ] Have migrated users set passwords through Supabase password recovery
 - [x] Replace admin user-management operations with a protected Edge Function
-- [x] Replace the GAS chatbot endpoint with a Supabase Edge Function
-- [ ] Configure `GEMINI_API_KEY` in Supabase Edge Function secrets
+- [x] Route chatbot inference and diagnostics directly from the frontend to the GAS web app
+- [ ] Configure `GEMINI_API_KEYS` in GAS Script Properties and redeploy the GAS web app
 - [x] Add and deploy the protected Supabase Drive proxy Edge Function
 - [x] Add the dedicated GAS Drive image CRUD source and Drive OAuth manifest
 - [ ] Paste the new GAS files into the supplied Apps Script project, set `DRIVE_CRUD_SECRET`, authorize Drive, and redeploy
 - [ ] Set the matching `DRIVE_CRUD_SECRET` in Supabase Edge Function secrets
-- [ ] Run `?action=check&write=1` successfully against the redeployed GAS URL
+- [ ] Run an authenticated `POST` diagnostics request with `writeTest: true` successfully against the redeployed GAS URL
 - [x] Remove all obsolete non-image GAS sources and documentation
 - [ ] Run end-to-end editor, authentication, donation, newsletter, and chatbot tests

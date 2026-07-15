@@ -88,7 +88,7 @@ function getDefaultImpactAreas_() {
 
 function getPillarSocialItems_(pillar: Pillar) {
   var links = pillar.socialLinks || {};
-  var candidates: Array<{ key: string; label: string; value?: string; icon: JSX.Element }> = [
+  var candidates: Array<{ key: string; label: string; value?: string; icon: React.ReactElement }> = [
     { key: 'facebook', label: 'Facebook', value: links.facebook, icon: <Facebook size={16} /> },
     { key: 'instagram', label: 'Instagram', value: links.instagram, icon: <Instagram size={16} /> },
     { key: 'twitter', label: 'X', value: links.twitter, icon: <Twitter size={16} /> },
@@ -195,7 +195,10 @@ export const PillarDetail: React.FC<PillarDetailProps> = ({ pillar, onBack, onEd
       </button>
 
       {/* Edit Button - Admin only */}
-      {onEdit && user?.role === 'admin' && (
+      {onEdit && (
+        user?.role === 'admin'
+        || (user?.role === 'pillar_editor' && String(user.pillarId) === String(pillar.id))
+      ) && (
         <button 
           onClick={onEdit}
           className="fixed top-24 right-4 md:right-8 z-40 flex items-center gap-2 bg-primary-blue/90 text-white backdrop-blur-md hover:bg-primary-cyan transition-all duration-300 font-medium px-5 py-2.5 rounded-full shadow-[0_4px_20px_rgba(0,0,0,0.3)] border border-white/10 group"
