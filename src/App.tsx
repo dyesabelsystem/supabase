@@ -20,6 +20,7 @@ import { Chapter, ExecutiveOfficer, Pillar, User } from './types';
 import { DataService, getImageDebugInfo } from './services/DriveService';
 import { getSessionToken, getSessionUser } from './utils/session';
 import { BookOpen, Heart, Leaf, Palette, Scale } from 'lucide-react';
+import PortalInfo from './components/PortalInfo';
 import { APP_CONFIG } from './config';
 import {
   buildDashboardPath,
@@ -604,7 +605,7 @@ function AppContent() {
 
     if (currentRoute.type === 'reset-password') return;
 
-    if (currentRoute.type === 'root' || currentRoute.type === 'unknown') {
+    if (currentRoute.type === 'root' || (currentRoute.type === 'unknown' && pathname !== '/portal-info')) {
       navigateTo(HOME_PATH, { replace: true });
       return;
     }
@@ -958,6 +959,8 @@ function AppContent() {
                 <h2 className="text-2xl font-bold">Access Denied</h2>
               </div>
             )
+          ) : pathname === '/portal-info' ? (
+            <PortalInfo />
           ) : currentRoute.type === 'privacy-policy' ? (
             <LegalPage type="privacy" onBack={handleBackToHome} onNavigate={handleLegalNavigation} />
           ) : currentRoute.type === 'terms-of-service' ? (
