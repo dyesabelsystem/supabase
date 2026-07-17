@@ -113,7 +113,11 @@ Deno.serve(async (request) => {
     }
     throw new Error("Unsupported user action.");
   } catch (error) {
-    return Response.json({ success: false, error: error instanceof Error ? error.message : String(error) }, { status: 400, headers: cors });
+    const code = String((error as { code?: unknown } | null)?.code || "");
+    const message = code === "same_password"
+      ? "This password is already the account's current password. Choose a different password."
+      : error instanceof Error ? error.message : String(error);
+    return Response.json({ success: false, error: message, code: code || undefined }, { status: 400, headers: cors });
   }
 });
 

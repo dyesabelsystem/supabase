@@ -37,7 +37,8 @@ notifications.
    the hook sends auth mail and Supabase SMTP is not used.
 7. Request a password reset from the sign-in modal and inspect the
    `send-auth-email` function logs plus Apps Script executions. Confirm that the
-   link opens `/reset-password` and can be used only once.
+   email contains a **Reset password** button without displaying an OTP, that
+   the link opens `/reset-password`, and that it can be used only once.
 8. Subscribe a new test address in the website footer and submit one chatbot
    support ticket. Confirm the visitor receives a confirmation and the
    organization support inbox receives the internal ticket alert.
@@ -45,6 +46,14 @@ notifications.
 The GAS endpoint rejects browser requests without its server-only secret. The
 Edge Function rejects requests without a valid Supabase Standard Webhooks
 signature.
+
+Authentication emails are selected explicitly from Supabase's
+`email_action_type`:
+
+- `signup`, `invite`, `magiclink`, `recovery`, and `email_change` are link-only.
+- `email` and `reauthentication` are one-time-code-only.
+- Account security notifications contain neither a code nor an action link.
+- Unsupported action types fail closed instead of falling back to an OTP.
 
 Public application events are restricted to fixed templates and destinations:
 newsletter addresses are unique, and support tickets are limited to three per

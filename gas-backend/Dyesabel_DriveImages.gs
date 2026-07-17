@@ -378,10 +378,97 @@ function dyesabelSendApplicationEmail_(data) {
 }
 
 function dyesabelAuthEmailContent_(actionType, token, tokenHash, redirectTo) {
-  var verifyType = actionType === 'magiclink' ? 'magiclink' : actionType;
-  var actionUrl = tokenHash
+  var linkActions = {
+    signup: true,
+    invite: true,
+    magiclink: true,
+    recovery: true,
+    email_change: true
+  };
+  var codeActions = {
+    email: true,
+    reauthentication: true
+  };
+  var notificationContent = {
+    password_changed_notification: {
+      subject: 'Your DYESABEL PH password was changed',
+      title: 'Password changed',
+      message: 'The password for your DYESABEL PH account was changed successfully.',
+      detail: 'No further action is needed if you made this change.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    email_changed_notification: {
+      subject: 'Your DYESABEL PH email was changed',
+      title: 'Email address changed',
+      message: 'The email address for your DYESABEL PH account was changed successfully.',
+      detail: 'Future account messages will be delivered to the new email address.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    phone_changed_notification: {
+      subject: 'Your DYESABEL PH phone number was changed',
+      title: 'Phone number changed',
+      message: 'The phone number for your DYESABEL PH account was changed successfully.',
+      detail: 'No further action is needed if you made this change.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    identity_linked_notification: {
+      subject: 'A sign-in identity was linked to your DYESABEL PH account',
+      title: 'Sign-in identity linked',
+      message: 'A new sign-in identity was linked to your DYESABEL PH account.',
+      detail: 'You can now use that identity to access your account.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    identity_unlinked_notification: {
+      subject: 'A sign-in identity was removed from your DYESABEL PH account',
+      title: 'Sign-in identity removed',
+      message: 'A sign-in identity was removed from your DYESABEL PH account.',
+      detail: 'That identity can no longer be used to access your account.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    mfa_factor_enrolled_notification: {
+      subject: 'Multi-factor authentication was added to your DYESABEL PH account',
+      title: 'Security factor added',
+      message: 'A new multi-factor authentication method was added to your account.',
+      detail: 'Your account will request this additional verification when required.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    },
+    mfa_factor_unenrolled_notification: {
+      subject: 'Multi-factor authentication was removed from your DYESABEL PH account',
+      title: 'Security factor removed',
+      message: 'A multi-factor authentication method was removed from your account.',
+      detail: 'That verification method can no longer be used for this account.',
+      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+    }
+  };
+
+  if (notificationContent[actionType]) {
+    return {
+      subject: notificationContent[actionType].subject,
+      eyebrow: 'SECURITY NOTICE',
+      title: notificationContent[actionType].title,
+      message: notificationContent[actionType].message,
+      detail: notificationContent[actionType].detail,
+      buttonLabel: '',
+      actionUrl: '',
+      token: '',
+      warning: notificationContent[actionType].warning
+    };
+  }
+
+  if (!linkActions[actionType] && !codeActions[actionType]) {
+    throw new Error('Unsupported authentication email action type: ' + actionType);
+  }
+
+  if (linkActions[actionType] && !tokenHash) {
+    throw new Error('Missing authentication link token for ' + actionType + '.');
+  }
+  if (codeActions[actionType] && !token) {
+    throw new Error('Missing one-time code for ' + actionType + '.');
+  }
+
+  var actionUrl = linkActions[actionType]
     ? 'https://rtmpjojqzfrggmmlseam.supabase.co/auth/v1/verify?token=' +
-      encodeURIComponent(tokenHash) + '&type=' + encodeURIComponent(verifyType) +
+      encodeURIComponent(tokenHash) + '&type=' + encodeURIComponent(actionType) +
       '&redirect_to=' + encodeURIComponent(redirectTo)
     : '';
 
@@ -394,42 +481,43 @@ function dyesabelAuthEmailContent_(actionType, token, tokenHash, redirectTo) {
       detail: 'Use the secure button below to create a new password. This link is time-limited and can only be used once.',
       buttonLabel: 'Reset password',
       actionUrl: actionUrl,
-      token: token,
+      token: '',
       warning: 'If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.'
     };
   }
 
-  if (actionType === 'password_changed_notification') {
+  var linkContent = {
+    signup: ['Verify your DYESABEL PH email', 'Verify your email address', 'Verify email'],
+    invite: ['You are invited to DYESABEL PH', 'Accept your invitation', 'Accept invitation'],
+    magiclink: ['Your DYESABEL PH sign-in link', 'Sign in securely', 'Sign in'],
+    email_change: ['Confirm your DYESABEL PH email change', 'Confirm your new email', 'Confirm email change']
+  };
+  if (linkContent[actionType]) {
     return {
-      subject: 'Your DYESABEL PH password was changed',
-      eyebrow: 'SECURITY NOTICE',
-      title: 'Password changed',
-      message: 'The password for your DYESABEL PH account was changed successfully.',
-      detail: 'No further action is needed if you made this change.',
-      buttonLabel: '',
-      actionUrl: '',
+      subject: linkContent[actionType][0],
+      eyebrow: 'SECURE ACCOUNT LINK',
+      title: linkContent[actionType][1],
+      message: 'Use the secure button below to continue with your DYESABEL PH account.',
+      detail: 'This link is time-limited and can only be used for the requested account action.',
+      buttonLabel: linkContent[actionType][2],
+      actionUrl: actionUrl,
       token: '',
-      warning: 'If you did not make this change, contact us immediately at ' + DYESABEL_SUPPORT_EMAIL + '.'
+      warning: 'If you did not request this email, you can safely ignore it.'
     };
   }
 
-  var labels = {
-    signup: ['Verify your DYESABEL PH email', 'Verify your email address'],
-    invite: ['You are invited to DYESABEL PH', 'Accept your invitation'],
-    magiclink: ['Your DYESABEL PH sign-in code', 'Sign in securely'],
+  var codeContent = {
     email: ['Your DYESABEL PH verification code', 'Verify your identity'],
-    reauthentication: ['Confirm your DYESABEL PH identity', 'Confirm your identity'],
-    email_change: ['Confirm your DYESABEL PH email change', 'Confirm your new email']
+    reauthentication: ['Confirm your DYESABEL PH identity', 'Confirm your identity']
   };
-  var label = labels[actionType] || ['DYESABEL PH account verification', 'Verify your account'];
   return {
-    subject: label[0],
-    eyebrow: 'EMAIL VERIFICATION',
-    title: label[1],
+    subject: codeContent[actionType][0],
+    eyebrow: 'ONE-TIME VERIFICATION',
+    title: codeContent[actionType][1],
     message: 'Use this one-time verification code to continue with your DYESABEL PH account.',
     detail: 'For your security, this code expires shortly and should never be shared with anyone.',
-    buttonLabel: actionUrl ? 'Continue securely' : '',
-    actionUrl: actionUrl,
+    buttonLabel: '',
+    actionUrl: '',
     token: token,
     warning: 'If you did not request this email, you can safely ignore it. Do not share this code with anyone.'
   };

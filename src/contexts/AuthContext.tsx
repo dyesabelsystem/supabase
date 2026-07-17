@@ -13,6 +13,7 @@ import {
   getSessionUser,
   markSessionActivity,
   saveSession,
+  updateSessionToken,
   updateSessionUser
 } from '../utils/session';
 
@@ -62,7 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       const { data: sessionData } = await supabase.auth.getSession();
-      const activeToken = token || sessionData.session?.access_token || null;
+      const activeToken = sessionData.session?.access_token || token || null;
 
       if (activeToken) {
         try {
@@ -97,6 +98,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsLoading(false);
     };
     void checkSession();
+  }, []);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session?.access_token && getSessionUser()) {
+        updateSessionToken(session.access_token);
+      }
+    });
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
   const login = async (username: string, password: string): Promise<{ success: boolean; error?: string }> => {

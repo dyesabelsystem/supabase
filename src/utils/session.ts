@@ -80,6 +80,15 @@ export const updateSessionUser = (nextUser: User) => {
   writeSessionState(sessionTokenMemory, nextUser);
 };
 
+export const updateSessionToken = (nextToken: string) => {
+  hydrateSessionState();
+  const normalizedToken = String(nextToken || '').trim();
+  if (!normalizedToken) return;
+  sessionTokenMemory = normalizedToken;
+  writeSessionState(normalizedToken, sessionUserMemory);
+  markSessionActivity();
+};
+
 export const markSessionActivity = () => {
   if (typeof window === 'undefined') {
     return;

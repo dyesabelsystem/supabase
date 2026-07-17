@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { isLocalDemoSession } from '../utils/demoAuth';
+import { dispatchAuthInvalidEvent, updateSessionToken } from '../utils/session';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -150,6 +151,66 @@ const fetchProfileForAuthUser = async (authUserId: string, authEmail?: string | 
   return fetchProfileByColumn('email', normalizedEmail);
 };
 
+const readFunctionError = async (error: unknown) => {
+  const fallback = error instanceof Error ? error.message : 'The server request failed.';
+  const response = (error as { context?: unknown } | null)?.context;
+  if (!(response instanceof Response)) return { status: 0, message: fallback };
+
+  let message = fallback;
+  try {
+    const payload = await response.clone().json() as { error?: string; message?: string };
+    message = payload.error || payload.message || fallback;
+  } catch {
+    try {
+      message = (await response.clone().text()).trim() || fallback;
+    } catch {
+      // Keep the SDK fallback message when the response body is unavailable.
+    }
+  }
+  return { status: response.status, message };
+};
+
+const resolveFunctionAccessToken = async (providedToken?: unknown) => {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  let session = data.session;
+  const expiresSoon = !!session?.expires_at && session.expires_at * 1000 <= Date.now() + 60_000;
+  if (session && expiresSoon) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error || !refreshed.data.session) {
+      dispatchAuthInvalidEvent('Your session has expired. Please sign in again.');
+      throw refreshed.error || new Error('Your session has expired. Please sign in again.');
+    }
+    session = refreshed.data.session;
+  }
+
+  const token = session?.access_token || String(providedToken || '').trim();
+  if (!token) {
+    dispatchAuthInvalidEvent('Your session has expired. Please sign in again.');
+    throw new Error('Your session has expired. Please sign in again.');
+  }
+  if (session?.access_token) updateSessionToken(session.access_token);
+  return token;
+};
+
+const invokeUserAdmin = async (payload: Payload): Promise<ApiResponse<any>> => {
+  const accessToken = await resolveFunctionAccessToken(payload.sessionToken);
+  const body = { ...payload };
+  delete body.sessionToken;
+  const { data, error } = await supabase.functions.invoke('user-admin', {
+    body,
+    headers: { Authorization: `Bearer ${accessToken}` }
+  });
+  if (!error) return data as ApiResponse;
+
+  const details = await readFunctionError(error);
+  if (details.status === 401) {
+    dispatchAuthInvalidEvent('Your session has expired. Please sign in again.');
+    return { success: false, error: 'Your session has expired. Please sign in again.' };
+  }
+  return { success: false, error: details.message };
+};
+
 const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => {
   if (payload.action === 'logout') {
     const { error } = await supabase.auth.signOut();
@@ -183,9 +244,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
     return { success: true, sessionToken: data.session.access_token, user: mapProfile(profile) };
   }
   if (['listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword', 'sendPasswordReset'].includes(payload.action)) {
-    const { data, error } = await supabase.functions.invoke('user-admin', { body: payload });
-    if (error) throw error;
-    return data as ApiResponse;
+    return invokeUserAdmin(payload);
   }
   if (payload.action === 'updateOwnProfile') {
     const attributes: { email?: string; password?: string; data?: Record<string, string> } = {
