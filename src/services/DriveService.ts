@@ -1,15 +1,6 @@
 import { User } from '../types';
 import { ApiResponse, sendApiRequest } from './apiClient';
 import { invalidateLocalCache, withLocalCache } from '../utils/cache';
-import {
-  authenticateLocalDemo,
-  createLocalDemoUser,
-  deleteLocalDemoUser,
-  getLocalDemoUsers,
-  isLocalDemoSession,
-  updateLocalDemoUser,
-  validateLocalDemoSession
-} from '../utils/demoAuth';
 
 export interface UploadProgress {
   loaded: number;
@@ -60,8 +51,6 @@ const invalidateMainContentCache = () => {
 
 export const AuthService = {
   login: async (username: string, password: string, clientFingerprint?: string) => {
-    const demo = authenticateLocalDemo(username, password);
-    if (demo) return { success: true, ...demo };
     return sendUsersRequest<{ sessionToken: string; user: User }>({
       action: 'login',
       username,
@@ -80,7 +69,6 @@ export const AuthService = {
   },
 
   logout: async (sessionToken: string) => {
-    if (isLocalDemoSession(sessionToken)) return { success: true };
     return sendUsersRequest({
       action: 'logout',
       sessionToken
@@ -88,8 +76,6 @@ export const AuthService = {
   },
 
   validateSession: async (sessionToken: string) => {
-    const demoUser = validateLocalDemoSession(sessionToken);
-    if (demoUser) return { success: true, valid: true, user: demoUser };
     return sendUsersRequest<{ valid: boolean; user: User }>({
       action: 'validateSession',
       sessionToken
@@ -97,7 +83,6 @@ export const AuthService = {
   },
 
   listUsers: async (sessionToken: string) => {
-    if (isLocalDemoSession(sessionToken)) return { success: true, users: getLocalDemoUsers() };
     return sendUsersRequest<{ users: User[] }>({
       action: 'listUsers',
       sessionToken
@@ -112,9 +97,6 @@ export const AuthService = {
     chapterId?: string;
     pillarId?: string;
   }) => {
-    if (isLocalDemoSession(sessionToken)) {
-      return { success: true, user: createLocalDemoUser({ ...userData, role: userData.role as User['role'] }) };
-    }
     return sendUsersRequest<{ user: User }>({
       action: 'createUser',
       sessionToken,
@@ -130,20 +112,6 @@ export const AuthService = {
     chapterId?: string;
     pillarId?: string;
   }) => {
-    if (isLocalDemoSession(sessionToken)) {
-      const current = getLocalDemoUsers().find((user) => user.id === userData.userId);
-      const updated = current ? updateLocalDemoUser({
-        ...current,
-        username: userData.username,
-        email: userData.email.trim().toLowerCase(),
-        role: userData.role as User['role'],
-        chapterId: userData.chapterId || undefined,
-        pillarId: userData.pillarId || undefined
-      }) : null;
-      return updated
-        ? { success: true, user: updated }
-        : { success: false, error: 'Demo user not found.' };
-    }
     return sendUsersRequest<{ user: User }>({
       action: 'updateUser',
       sessionToken,
@@ -156,17 +124,6 @@ export const AuthService = {
     email: string;
     newPassword?: string;
   }) => {
-    if (isLocalDemoSession(sessionToken)) {
-      const current = validateLocalDemoSession(sessionToken);
-      const updated = current ? updateLocalDemoUser({
-        ...current,
-        username: profileData.username,
-        email: profileData.email.trim().toLowerCase()
-      }) : null;
-      return updated
-        ? { success: true, user: updated }
-        : { success: false, error: 'Demo user not found.' };
-    }
     return sendUsersRequest<{ user: User; sessionToken?: string; sessionRotated?: boolean }>({
       action: 'updateOwnProfile',
       sessionToken,
@@ -175,11 +132,6 @@ export const AuthService = {
   },
 
   deleteUser: async (sessionToken: string, userId: string) => {
-    if (isLocalDemoSession(sessionToken)) {
-      return deleteLocalDemoUser(userId)
-        ? { success: true }
-        : { success: false, error: 'Demo user not found.' };
-    }
     return sendUsersRequest({
       action: 'deleteUser',
       sessionToken,
@@ -188,7 +140,6 @@ export const AuthService = {
   },
 
   updatePassword: async (sessionToken: string, userId: string, newPassword: string) => {
-    if (isLocalDemoSession(sessionToken)) return { success: true };
     return sendUsersRequest({
       action: 'updatePassword',
       sessionToken,
@@ -198,9 +149,6 @@ export const AuthService = {
   },
 
   sendPasswordReset: async (sessionToken: string, userId: string, redirectTo: string) => {
-    if (isLocalDemoSession(sessionToken)) {
-      return { success: true, message: 'Demo password reset email simulated.' };
-    }
     return sendUsersRequest({
       action: 'sendPasswordReset',
       sessionToken,

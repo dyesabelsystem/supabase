@@ -442,10 +442,10 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
   const addChapterActivity = () => {
     const newActivity: ChapterActivity = {
       id: `activity-${Date.now()}`,
-      title: 'New Chapter Activity',
+      title: '',
       description: '',
-      date: new Date().toISOString(),
-      imageUrl: 'https://picsum.photos/seed/new-activity/640/360',
+      date: '',
+      imageUrl: '',
       learnMoreUrl: ''
     };
 
@@ -907,7 +907,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       <div className="mt-4 overflow-hidden rounded-2xl border border-white/10 bg-[#020b1f]">
         <div className="relative h-44 overflow-hidden">
           <img
-            src={convertToCORSFreeLink(previewChapterCover) || 'https://picsum.photos/1200/600'}
+            src={convertToCORSFreeLink(previewChapterCover) || '/icons/social-preview-image.png'}
             alt={`${previewChapterName} cover preview`}
             className="h-full w-full object-cover"
           />

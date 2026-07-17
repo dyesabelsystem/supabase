@@ -9,8 +9,9 @@ interface AppToastAction {
   onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-type AppToastOptions = Omit<ExternalToast, 'action' | 'cancel' | 'icon' | 'jsx'> & {
+type AppToastOptions = Omit<ExternalToast, 'action' | 'cancel' | 'description' | 'icon' | 'jsx'> & {
   action?: AppToastAction;
+  description?: React.ReactNode;
 };
 
 interface AppToastCardProps {
@@ -73,7 +74,9 @@ const showToast = (
     (id) => (
       <AppToastCard id={id} type={type} title={title} description={description} action={action} />
     ),
-    { ...sonnerOptions, description, unstyled: true }
+    // The custom card owns the description. Passing it to Sonner as well makes
+    // Sonner render a second, unstyled description below the card.
+    { ...sonnerOptions, unstyled: true }
   );
 };
 

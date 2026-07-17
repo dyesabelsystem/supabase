@@ -107,8 +107,8 @@ export const PartnersEditor: React.FC<PartnersEditorProps> = ({ categories, onSa
     const updated = [...editedCategories];
     const newPartner: Partner = {
       id: `p${Date.now()}`,
-      name: 'New Partner',
-      logo: 'https://ui-avatars.com/api/?name=New+Partner&background=2563eb&color=fff'
+      name: '',
+      logo: ''
     };
     updated[categoryIndex].partners = [...updated[categoryIndex].partners, newPartner];
     setEditedCategories(updated);

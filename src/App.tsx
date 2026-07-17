@@ -43,7 +43,6 @@ const LoginModal = lazy(() => import('./components/LoginModal').then((module) =>
 const ResetPasswordPage = lazy(() => import('./components/ResetPasswordPage').then((module) => ({ default: module.ResetPasswordPage })));
 const AdminDashboard = lazy(() => import('./components/AdminDashboard').then((module) => ({ default: module.AdminDashboard })));
 const ChapterEditor = lazy(() => import('./components/ChapterEditor').then((module) => ({ default: module.ChapterEditor })));
-const LandingPageEditor = lazy(() => import('./components/LandingPageEditor').then((module) => ({ default: module.LandingPageEditor })));
 const PillarsEditor = lazy(() => import('./components/PillarsEditor').then((module) => ({ default: module.PillarsEditor })));
 const PartnersEditor = lazy(() => import('./components/PartnersEditor').then((module) => ({ default: module.PartnersEditor })));
 const FoundersEditor = lazy(() => import('./components/FoundersEditor').then((module) => ({ default: module.FoundersEditor })));
@@ -152,7 +151,6 @@ function AppContent() {
   const [isPillarEditorOpen, setIsPillarEditorOpen] = useState(false);
   const [isPartnersEditorOpen, setIsPartnersEditorOpen] = useState(false);
   const [isFoundersEditorOpen, setIsFoundersEditorOpen] = useState(false);
-  const [isLandingEditorOpen, setIsLandingEditorOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isDonatePageOpen, setIsDonatePageOpen] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
@@ -705,7 +703,6 @@ function AppContent() {
     setIsPillarEditorOpen(false);
     setIsPartnersEditorOpen(false);
     setIsFoundersEditorOpen(false);
-    setIsLandingEditorOpen(false);
   };
 
   const resetToHome = (restorePreviousScroll: boolean) => {
@@ -911,9 +908,7 @@ function AppContent() {
 
       <main className="relative">
         <Suspense fallback={<LoadingScreen />}>
-          {isLandingEditorOpen ? (
-            <LandingPageEditor onBack={() => setIsLandingEditorOpen(false)} />
-          ) : isPartnersEditorOpen ? (
+          {isPartnersEditorOpen ? (
             <PartnersEditor
               categories={partners}
               onSave={(nextPartners) => {
@@ -1009,7 +1004,7 @@ function AppContent() {
         </Suspense>
       </main>
 
-      {!isDonatePageOpen && !showDashboard && !isLandingEditorOpen && !isChapterEditorOpen && !isPillarEditorOpen && !isPartnersEditorOpen && !isFoundersEditorOpen && (
+      {!isDonatePageOpen && !showDashboard && !isChapterEditorOpen && !isPillarEditorOpen && !isPartnersEditorOpen && !isFoundersEditorOpen && (
         <Footer onDonateClick={handleDonateClick} onNavigate={handleFooterNavigation} onLegalNavigate={handleLegalNavigation} />
       )}
 
@@ -1050,7 +1045,6 @@ function AppContent() {
         }
         hidden={
           !(currentView === 'home' || currentView === 'chapter' || currentView === 'pillar') ||
-          isLandingEditorOpen ||
           isChapterEditorOpen ||
           isPillarEditorOpen ||
           isPartnersEditorOpen ||

@@ -61,9 +61,7 @@ export const ChapterEditor: React.FC<ChapterEditorProps> = ({ onBack, chapter }:
     joinUrl: chapter?.joinUrl || '',
 
     // Activities
-    activities: chapter?.activities || [
-      { id: 1, title: 'Sample Activity', description: 'Description here...', date: '2024-01-01', imageUrl: '' },
-    ],
+    activities: chapter?.activities || [],
   });
 
   // Store original data to revert on Cancel

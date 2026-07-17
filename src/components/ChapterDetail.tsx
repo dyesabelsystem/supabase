@@ -214,7 +214,7 @@ export const ChapterDetail: React.FC<ChapterDetailProps> = ({ chapter: initialCh
       <section className="relative h-[50vh] min-h-[400px] flex items-end pb-12 overflow-hidden mb-12">
         <div className="absolute inset-0 z-0">
           <img 
-            src={convertToCORSFreeLink(chapter.image || chapter.imageUrl) || 'https://picsum.photos/1200/600'} 
+            src={convertToCORSFreeLink(chapter.image || chapter.imageUrl) || '/icons/social-preview-image.png'}
             alt={`${chapter.name} chapter cover photo`} 
             fetchPriority="high"
             decoding="async"
@@ -226,7 +226,7 @@ export const ChapterDetail: React.FC<ChapterDetailProps> = ({ chapter: initialCh
                   image: getImageDebugInfo(chapter.image || chapter.imageUrl),
                 attemptedSrc: event.currentTarget.currentSrc || event.currentTarget.src
               });
-              event.currentTarget.src = 'https://picsum.photos/1200/600';
+              event.currentTarget.src = '/icons/social-preview-image.png';
             }}
             className="w-full h-full object-cover"
           />

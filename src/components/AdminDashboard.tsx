@@ -16,21 +16,6 @@ import { useAppDialog } from '../contexts/AppDialogContext';
 import { ExecutiveOfficer, Founder } from '../types';
 import { getSessionToken } from '../utils/session';
 
-const initialPartnerCategories = [
-  {
-    id: 'coalitions',
-    title: 'Coalitions',
-    icon: <UsersIcon className="w-6 h-6" />,
-    partners: []
-  },
-  {
-    id: 'gov',
-    title: 'Government Partners',
-    icon: <Building2 className="w-6 h-6" />,
-    partners: []
-  }
-];
-
 interface AdminDashboardProps {
   onBack: () => void;
 }
@@ -54,7 +39,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
   const [activeEditor, setActiveEditor] = useState<string | null>(null);
   const [pillars, setPillars] = useState<any[]>([]);
-  const [partners, setPartners] = useState(initialPartnerCategories);
+  const [partners, setPartners] = useState<any[]>([]);
   const [founders, setFounders] = useState<Founder[]>([]);
   const [executiveOfficers, setExecutiveOfficers] = useState<ExecutiveOfficer[]>([]);
   const [chapterCount, setChapterCount] = useState(0);

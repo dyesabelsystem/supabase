@@ -162,10 +162,10 @@ export const PillarsEditor: React.FC<PillarsEditorProps> = ({ pillars, onSave, o
   const addActivity = (pillarIndex: number) => {
     const newActivity: PillarActivity = {
       id: `a${pillarIndex}-${Date.now()}`,
-      title: 'New Activity',
-      date: new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-      description: 'Activity description',
-      imageUrl: 'https://picsum.photos/seed/new/500/300',
+      title: '',
+      date: '',
+      description: '',
+      imageUrl: '',
       learnMoreUrl: '',
       applicationOpen: false,
       applicationUrl: '',

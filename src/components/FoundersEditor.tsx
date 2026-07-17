@@ -230,10 +230,10 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
       ...current,
       {
         id: `founder-${Date.now()}`,
-        name: 'New Founder',
-        role: 'Position/Role',
-        bio: 'Short biography and background...',
-        imageUrl: 'https://picsum.photos/seed/newfounder/400/400'
+        name: '',
+        role: '',
+        bio: '',
+        imageUrl: ''
       }
     ]);
   };
@@ -244,7 +244,7 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
       ...current,
       {
         id: nextId,
-        name: 'New Executive Officer',
+        name: '',
         role: '',
         imageUrl: ''
       }

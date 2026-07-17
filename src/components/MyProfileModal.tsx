@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { KeyRound, Mail, Save, User as UserIcon, X } from 'lucide-react';
+import { Eye, EyeOff, KeyRound, Mail, Save, User as UserIcon, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppDialog } from '../contexts/AppDialogContext';
 import { AuthService, DataService } from '../services/DriveService';
@@ -50,6 +50,8 @@ export const MyProfileModal: React.FC<MyProfileModalProps> = ({ isOpen, onClose 
   const [email, setEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [chapterName, setChapterName] = useState('');
 
@@ -59,6 +61,8 @@ export const MyProfileModal: React.FC<MyProfileModalProps> = ({ isOpen, onClose 
     setEmail(user.email || '');
     setNewPassword('');
     setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
   }, [isOpen, user]);
 
   useEffect(() => {
@@ -242,20 +246,44 @@ export const MyProfileModal: React.FC<MyProfileModalProps> = ({ isOpen, onClose 
               <h3 className="text-xs sm:text-sm font-bold text-ocean-deep dark:text-white">Change Password</h3>
             </div>
             <div className="space-y-2.5 sm:space-y-3">
-              <input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs sm:text-sm text-ocean-deep outline-none focus:ring-2 focus:ring-primary-cyan/50 dark:border-white/10 dark:bg-black/20 dark:text-white"
-                placeholder="New password"
-              />
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs sm:text-sm text-ocean-deep outline-none focus:ring-2 focus:ring-primary-cyan/50 dark:border-white/10 dark:bg-black/20 dark:text-white"
-                placeholder="Confirm new password"
-              />
+              <div className="relative">
+                <input
+                  type={showNewPassword ? 'text' : 'password'}
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-11 text-xs text-ocean-deep outline-none focus:ring-2 focus:ring-primary-cyan/50 sm:text-sm dark:border-white/10 dark:bg-black/20 dark:text-white"
+                  placeholder="New password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPassword((visible) => !visible)}
+                  aria-label={showNewPassword ? 'Hide new password' : 'Show new password'}
+                  aria-pressed={showNewPassword}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-400 transition-colors hover:text-primary-cyan focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-cyan"
+                >
+                  {showNewPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  autoComplete="new-password"
+                  className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-3 pr-11 text-xs text-ocean-deep outline-none focus:ring-2 focus:ring-primary-cyan/50 sm:text-sm dark:border-white/10 dark:bg-black/20 dark:text-white"
+                  placeholder="Confirm new password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((visible) => !visible)}
+                  aria-label={showConfirmPassword ? 'Hide confirmed password' : 'Show confirmed password'}
+                  aria-pressed={showConfirmPassword}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-gray-400 transition-colors hover:text-primary-cyan focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-cyan"
+                >
+                  {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
               <p className="text-[11px] sm:text-xs text-ocean-deep/55 dark:text-gray-400">
                 Leave both password fields blank if you do not want to change it.
               </p>
