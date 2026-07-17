@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, BookOpen, Users as UsersIcon, FileText, Building2, Globe, Heart, UserCircle2 } from 'lucide-react';
+import { ArrowLeft, BookOpen, Users as UsersIcon, FileText, Building2, Globe, Heart, UserCircle2, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { PillarsEditor } from './PillarsEditor';
 import { PartnersEditor } from './PartnersEditor';
@@ -8,6 +8,7 @@ import { DonationPageEditor } from './DonationPageEditor';
 import { ChaptersManagement } from './ChaptersManagement';
 import { ChapterEditor } from './ChapterEditor';
 import { MyProfileModal } from './MyProfileModal';
+import { RoleEditorModal } from './RoleEditorModal';
 import { SkeletonBlock, SkeletonCircle } from './Skeleton';
 import { DataService } from '../services/DriveService';
 import { DonationsService } from '../services/DonationsService';
@@ -60,6 +61,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
   const [recentDonationsCount, setRecentDonationsCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isRoleEditorOpen, setIsRoleEditorOpen] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -457,6 +459,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
 
               {canManageChapters && (
                 <button
+                  onClick={() => setIsRoleEditorOpen(true)}
+                  className="bg-white dark:bg-[#051923] rounded-xl shadow-lg border border-white/10 p-6 hover:border-indigo-500 dark:hover:border-indigo-400 transition-all hover:shadow-xl text-left group"
+                >
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="p-3 bg-indigo-500/10 rounded-lg group-hover:bg-indigo-500/20 transition-colors">
+                      <ShieldCheck className="text-indigo-500" size={28} />
+                    </div>
+                    <span className="text-sm font-medium text-indigo-500">Manage</span>
+                  </div>
+                  <h3 className="text-xl font-bold text-ocean-deep dark:text-white mb-2">
+                    Roles & Permissions
+                  </h3>
+                  <p className="text-sm text-ocean-deep/60 dark:text-gray-400 mb-3">
+                    Edit user roles, hierarchy, and chapter or pillar assignments
+                  </p>
+                  <div className="text-xs text-ocean-deep/40 dark:text-gray-500">
+                    Admin-only access control
+                  </div>
+                </button>
+              )}
+
+              {canManageChapters && (
+                <button
                   onClick={() => setActiveEditor('chapters')}
                   className="bg-white dark:bg-[#051923] rounded-xl shadow-lg border border-white/10 p-6 hover:border-teal-500 dark:hover:border-teal-400 transition-all hover:shadow-xl text-left group"
                 >
@@ -527,6 +552,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       />
+
+      {isAdmin && (
+        <RoleEditorModal
+          isOpen={isRoleEditorOpen}
+          onClose={() => setIsRoleEditorOpen(false)}
+        />
+      )}
     </>
   );
 };

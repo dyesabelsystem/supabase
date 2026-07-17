@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { X, Eye, EyeOff, User, Lock, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { X, Eye, EyeOff, User, Lock, AlertCircle, CheckCircle, Loader2, FlaskConical } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { APP_CONFIG } from '../config';
 import { LoadingScreen } from './LoadingScreen';
@@ -7,6 +7,7 @@ import { supabase } from '../services/supabaseClient';
 import { AUTH_REDIRECT_MESSAGE_KEY } from '../contexts/AuthContext';
 import { ACCOUNT_NOT_FOUND_ERROR } from '../services/apiClient';
 import { toast } from 'sonner';
+import { isLocalDemoAvailable, LOCAL_DEMO_PASSWORD, LOCAL_DEMO_USERS } from '../utils/demoAuth';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const localDemoAvailable = isLocalDemoAvailable();
 
   const showLoginError = (message: string) => {
     setError(message);
@@ -150,6 +152,15 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     }
   };
 
+  const handleDemoLogin = async (email: string) => {
+    setError('');
+    setSuccessMessage('');
+    setIsLoading(true);
+    const result = await login(email, LOCAL_DEMO_PASSWORD);
+    setIsLoading(false);
+    if (!result.success) showLoginError(result.error || 'Demo login failed.');
+  };
+
   const switchToForgotPassword = () => {
     setView('forgot_password');
     setError('');
@@ -214,6 +225,33 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
 
           {view === 'login' ? (
             <form className="space-y-5" onSubmit={handleSubmit}>
+              {localDemoAvailable && (
+                <div className="rounded-2xl border border-amber-300/70 bg-amber-50 p-3.5 dark:border-amber-400/25 dark:bg-amber-400/10">
+                  <div className="mb-3 flex items-start gap-2.5">
+                    <FlaskConical className="mt-0.5 shrink-0 text-amber-600 dark:text-amber-300" size={18} />
+                    <div>
+                      <p className="text-sm font-black text-amber-900 dark:text-amber-100">Local demo accounts</p>
+                      <p className="text-xs text-amber-800/75 dark:text-amber-100/65">Testing only · data resets with this browser session</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {LOCAL_DEMO_USERS.map((demoUser) => (
+                      <button
+                        key={demoUser.id}
+                        type="button"
+                        onClick={() => void handleDemoLogin(demoUser.email)}
+                        disabled={isLoading}
+                        className="rounded-xl border border-amber-300/70 bg-white px-2.5 py-2 text-left transition hover:border-primary-cyan hover:bg-primary-cyan/5 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:hover:border-primary-cyan"
+                      >
+                        <span className="block truncate text-xs font-extrabold text-ocean-deep dark:text-white">{demoUser.username.replace('Demo ', '')}</span>
+                        <span className="block truncate text-[10px] capitalize text-ocean-deep/50 dark:text-white/50">{demoUser.role.replace('_', ' ')}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2.5 text-[10px] text-amber-800/65 dark:text-amber-100/55">Shared password: <span className="font-mono font-bold">{LOCAL_DEMO_PASSWORD}</span></p>
+                </div>
+              )}
+
               <button
                 type="button"
                 onClick={handleGoogleLogin}

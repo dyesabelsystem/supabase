@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { isLocalDemoSession } from '../utils/demoAuth';
 
 export interface ApiResponse<T = unknown> {
   success: boolean;
@@ -331,6 +332,12 @@ export const sendApiRequest = async <T>(
 ): Promise<ApiResponse<T>> => {
   const request = payload as Payload;
   try {
+    if (isLocalDemoSession(String(request.sessionToken || ''))) {
+      return {
+        success: false,
+        error: 'Local demo mode is read-only. This change was not sent to Supabase.'
+      };
+    }
     const contentAction = CONTENT_ACTIONS[String(request.action || '')];
     if (contentAction) return await handleContentAction(request, contentAction);
     const collectionResult = await handleCollectionAction(request);
