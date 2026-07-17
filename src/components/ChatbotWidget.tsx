@@ -256,6 +256,7 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
   const [cooldownRemainingMs, setCooldownRemainingMs] = useState(0);
   const [typingFrameIndex, setTypingFrameIndex] = useState(0);
   const [isMobileViewport, setIsMobileViewport] = useState(() => window.innerWidth < MOBILE_BREAKPOINT);
+  const [isFooterVisible, setIsFooterVisible] = useState(false);
   const chatbotClientId = useMemo(() => getOrCreateChatbotClientId(), []);
   const cooldownSeconds = Math.max(1, Math.ceil(cooldownRemainingMs / 1000));
 
@@ -303,6 +304,22 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    const footer = document.querySelector<HTMLElement>('[data-chatbot-boundary]');
+    if (!footer) {
+      setIsFooterVisible(false);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsFooterVisible(entry.isIntersecting),
+      { threshold: 0 }
+    );
+
+    observer.observe(footer);
+    return () => observer.disconnect();
+  }, [hidden]);
 
   useEffect(() => {
     if (!isOpen || !messagesContainerRef.current) return;
@@ -675,9 +692,17 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
 
   if (hidden) return null;
 
+  const footerVisibilityClass = isFooterVisible
+    ? 'pointer-events-none translate-y-8 scale-95 opacity-0'
+    : 'translate-y-0 scale-100 opacity-100';
+
   return (
     <>
-      <div className="fixed bottom-5 right-5 z-[94]">
+      <div
+        className={`fixed bottom-5 right-5 z-[94] transform-gpu transition-all duration-300 ease-out motion-reduce:transition-none ${footerVisibilityClass}`}
+        aria-hidden={isFooterVisible}
+        inert={isFooterVisible}
+      >
         <button
           type="button"
           onClick={() => setIsOpen((value) => !value)}
@@ -689,7 +714,12 @@ export const ChatbotWidget: React.FC<ChatbotWidgetProps> = ({
         </button>
       </div>
 
-      <section className={viewportClass} aria-live="polite">
+      <section
+        className={`${viewportClass} transform-gpu transition-all duration-300 ease-out motion-reduce:transition-none ${footerVisibilityClass}`}
+        aria-hidden={isFooterVisible || undefined}
+        aria-live="polite"
+        inert={isFooterVisible}
+      >
         {isOpen && (
           <div className="flex h-full w-full flex-col border border-ocean-deep/10 bg-white/95 text-ocean-deep shadow-2xl backdrop-blur-xl dark:border-white/10 dark:bg-[#041520]/95 dark:text-white md:overflow-hidden md:rounded-3xl">
             <header className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-ocean-deep to-primary-blue px-4 py-3 text-white">

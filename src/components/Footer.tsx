@@ -48,7 +48,7 @@ export const Footer: React.FC<FooterProps> = ({ onDonateClick, onNavigate, onLeg
   };
 
   return (
-    <footer className="relative z-20 border-t border-white/5 bg-ocean-deep/80 pb-10 pt-20 text-white backdrop-blur-xl">
+    <footer data-chatbot-boundary className="relative z-20 border-t border-white/5 bg-ocean-deep/80 pb-10 pt-20 text-white backdrop-blur-xl">
       <div className="container mx-auto px-4">
         <div className="mb-16 grid grid-cols-1 gap-10 md:grid-cols-4">
           <div className="col-span-1 reveal md:col-span-1">

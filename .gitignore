@@ -1,20 +1,40 @@
-# Node
+# Dependencies
 node_modules/
-dist/
-build/
-npm-debug.log*
 
-# Environment
+# Generated build and test output
+build/
+dist/
+coverage/
+.vite/
+*.tsbuildinfo
+
+# Environment and secrets (commit templates only)
 .env
 .env.*
 !.env.example
-!.env.vercel.example
+!.env.*.example
 
-# System & IDE
-.DS_Store
-Thumbs.db
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
+# Local deployment and tool state
+.vercel/
 .vscode/
 .idea/
+.gemini/
 
-# Git
-.git/
+# Logs and caches
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.cache/
+
+# Temporary project artifacts
+tmp_video_frames/
+
+# Operating system files
+.DS_Store
+Thumbs.db
