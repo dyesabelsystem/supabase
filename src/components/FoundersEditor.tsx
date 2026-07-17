@@ -420,10 +420,10 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
   );
 
   return (
-    <div className={`fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm transition-opacity duration-300 ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className="flex min-h-screen items-center justify-center p-4 md:p-8">
-        <div className={`flex max-h-[calc(100vh-2rem)] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl transition-all duration-300 dark:border-gray-700 dark:bg-gray-900 md:max-h-[calc(100vh-4rem)] ${isModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-95 opacity-0'}`}>
-        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-4 dark:border-gray-700 sm:px-6 sm:py-5">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm transition-opacity duration-300 sm:p-3 md:p-4 ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className="contents">
+        <div className={`flex max-h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl transition-all duration-300 dark:border-white/10 dark:bg-gray-900 sm:max-h-[95vh] sm:max-w-6xl sm:rounded-3xl ${isModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-95 opacity-0'}`}>
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 p-4 dark:border-gray-700 sm:p-5 md:p-6">
           <div>
             <h2 className="text-xl font-bold text-gray-900 dark:text-white sm:text-2xl">Edit Founders and Executives</h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
@@ -438,7 +438,7 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6 sm:py-6">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain bg-gray-50 p-4 dark:bg-gray-950/40 sm:p-5 md:p-6">
           <div className="space-y-8 pb-2">
             <section>
               <div className="flex items-center justify-between mb-6">
@@ -721,19 +721,19 @@ export const FoundersEditor: React.FC<FoundersEditorProps> = ({
             </div>
           </div>
 
-        <div className="flex items-center justify-end gap-3 border-t border-gray-200 px-5 py-4 dark:border-gray-700 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-center justify-end gap-3 border-t border-gray-200 bg-white/90 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/90 sm:px-5 sm:py-4 md:px-6">
           <button
             onClick={requestClose}
-            className="rounded-lg border border-gray-300 px-6 py-2 font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex items-center gap-2 rounded-lg bg-primary-blue px-6 py-2 font-medium text-white transition-colors hover:bg-primary-blue/90 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-lg bg-primary-blue px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-cyan disabled:opacity-50"
           >
-            <Save className="h-4 w-4" />
+            <Save className="h-[18px] w-[18px]" />
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>

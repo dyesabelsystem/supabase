@@ -469,10 +469,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ onBack }) => {
                     <span className="text-sm font-medium text-indigo-500">Manage</span>
                   </div>
                   <h3 className="text-xl font-bold text-ocean-deep dark:text-white mb-2">
-                    Roles & Permissions
+                    User Management
                   </h3>
                   <p className="text-sm text-ocean-deep/60 dark:text-gray-400 mb-3">
-                    Edit user roles, hierarchy, and chapter or pillar assignments
+                    Manage user information, roles, and chapter or pillar assignments
                   </p>
                   <div className="text-xs text-ocean-deep/40 dark:text-gray-500">
                     Admin-only access control

@@ -547,6 +547,7 @@ function dyesabelAllowedRedirect_(value) {
   var candidate = String(value || '').trim();
   if (/^https:\/\/(www\.)?dyesabelph\.org(?:[/?#]|$)/i.test(candidate)) return candidate;
   if (/^http:\/\/localhost(?::\d+)?(?:[/?#]|$)/i.test(candidate)) return candidate;
+  if (/^http:\/\/127\.0\.0\.1(?::\d+)?(?:[/?#]|$)/i.test(candidate)) return candidate;
   return DYESABEL_SITE_URL + '/reset-password';
 }
 

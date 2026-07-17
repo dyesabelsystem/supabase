@@ -7,8 +7,16 @@ interface SkeletonProps {
 const joinClasses = (...values: Array<string | undefined | false>) =>
   values.filter(Boolean).join(' ');
 
+const hasExplicitRadius = (className?: string) =>
+  String(className || '')
+    .split(/\s+/)
+    .some((classToken) => /(^|:)rounded(?:-|$)/.test(classToken));
+
 export const SkeletonBlock: React.FC<SkeletonProps> = ({ className }) => (
-  <div className={joinClasses('skeleton-shimmer rounded-xl', className)} aria-hidden="true" />
+  <div
+    className={joinClasses('skeleton-shimmer', !hasExplicitRadius(className) && 'rounded-xl', className)}
+    aria-hidden="true"
+  />
 );
 
 export const SkeletonCircle: React.FC<SkeletonProps> = ({ className }) => (

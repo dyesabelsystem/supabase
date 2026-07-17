@@ -7,6 +7,7 @@ import {
   supabase
 } from '../services/supabaseClient';
 import { LOGIN_PATH } from '../utils/routes';
+import { getPasswordRequirements, getPasswordValidationError } from '../utils/password';
 
 type RecoveryStatus = 'checking' | 'ready' | 'invalid' | 'success';
 
@@ -27,6 +28,7 @@ export const ResetPasswordPage: React.FC = () => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const passwordRequirements = getPasswordRequirements(password);
 
   useEffect(() => {
     let active = true;
@@ -75,8 +77,9 @@ export const ResetPasswordPage: React.FC = () => {
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError('');
-    if (password.length < 8) {
-      setError('Use a password with at least 8 characters.');
+    const validationError = getPasswordValidationError(password);
+    if (validationError) {
+      setError(validationError);
       return;
     }
     if (password !== confirmPassword) {
@@ -137,6 +140,13 @@ export const ResetPasswordPage: React.FC = () => {
             <form onSubmit={submit} className="mt-6 space-y-4">
               <PasswordField label="New password" value={password} visible={showPassword} onChange={setPassword} onToggle={() => setShowPassword((value) => !value)} />
               <PasswordField label="Confirm new password" value={confirmPassword} visible={showConfirmPassword} onChange={setConfirmPassword} onToggle={() => setShowConfirmPassword((value) => !value)} />
+              <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded-xl bg-gray-50 p-3 dark:bg-white/5">
+                {passwordRequirements.map((requirement) => (
+                  <span key={requirement.key} className={`flex items-center gap-1 text-[10px] ${requirement.met ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
+                    <CheckCircle2 className="h-3 w-3" /> {requirement.label}
+                  </span>
+                ))}
+              </div>
               <button type="submit" disabled={submitting || !password || !confirmPassword} className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-ocean-deep to-primary-blue px-4 py-3.5 font-bold text-white disabled:opacity-50">
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 {submitting ? 'Updating password...' : 'Update password'}
@@ -167,7 +177,7 @@ const PasswordField = ({ label, value, visible, onChange, onToggle }: { label: s
     {label}
     <span className="relative mt-1.5 block">
       <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-      <input type={visible ? 'text' : 'password'} value={value} onChange={(event) => onChange(event.target.value)} minLength={8} required autoComplete="new-password" placeholder="At least 8 characters" className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-12 font-medium outline-none focus:border-primary-cyan focus:ring-2 focus:ring-primary-cyan/40 dark:border-white/10 dark:bg-white/5" />
+      <input type={visible ? 'text' : 'password'} value={value} onChange={(event) => onChange(event.target.value)} minLength={12} required autoComplete="new-password" placeholder="At least 12 strong characters" className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3.5 pl-12 pr-12 font-medium outline-none focus:border-primary-cyan focus:ring-2 focus:ring-primary-cyan/40 dark:border-white/10 dark:bg-white/5" />
       <button type="button" onClick={onToggle} aria-label={visible ? 'Hide password' : 'Show password'} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400">
         {visible ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
       </button>

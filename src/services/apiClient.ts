@@ -182,7 +182,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
     }
     return { success: true, sessionToken: data.session.access_token, user: mapProfile(profile) };
   }
-  if (['listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword'].includes(payload.action)) {
+  if (['listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword', 'sendPasswordReset'].includes(payload.action)) {
     const { data, error } = await supabase.functions.invoke('user-admin', { body: payload });
     if (error) throw error;
     return data as ApiResponse;
@@ -348,7 +348,7 @@ export const sendApiRequest = async <T>(
       return await handleChapterAction(request);
     }
     if (request.action === 'subscribeNewsletter') return await handleNewsletter(request);
-    if (['login', 'logout', 'validateSession', 'listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword', 'updateOwnProfile', 'register'].includes(request.action)) {
+    if (['login', 'logout', 'validateSession', 'listUsers', 'createUser', 'updateUser', 'deleteUser', 'updatePassword', 'sendPasswordReset', 'updateOwnProfile', 'register'].includes(request.action)) {
       return await handleAuthAction(request);
     }
     if (request.action === 'getPublicDonationData') {

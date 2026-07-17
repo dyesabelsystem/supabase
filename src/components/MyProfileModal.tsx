@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppDialog } from '../contexts/AppDialogContext';
 import { AuthService, DataService } from '../services/DriveService';
 import { getSessionToken, saveSession } from '../utils/session';
+import { getPasswordValidationError } from '../utils/password';
 
 interface MyProfileModalProps {
   isOpen: boolean;
@@ -136,8 +137,12 @@ export const MyProfileModal: React.FC<MyProfileModalProps> = ({ isOpen, onClose 
         await showAlert('Passwords do not match.');
         return;
       }
-      if (newPassword.length < 8) {
-        await showAlert('Password must be at least 8 characters long.');
+      const passwordError = getPasswordValidationError(newPassword, {
+        username: trimmedUsername,
+        email: trimmedEmail
+      });
+      if (passwordError) {
+        await showAlert(passwordError);
         return;
       }
     }

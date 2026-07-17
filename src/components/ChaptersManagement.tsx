@@ -12,6 +12,7 @@ import { getSessionToken, getSessionUser } from '../utils/session';
 import { uploadImageToDrive } from '../utils/driveUpload';
 import { CustomSelect, CustomSelectOption } from './CustomSelect';
 import { SkeletonBlock, SkeletonCircle } from './Skeleton';
+import { getPasswordValidationError } from '../utils/password';
 
 const CHAPTERS_MANAGEMENT_CACHE_PREFIX = 'dyesabel:chapters-management:cache:v1';
 const ENABLE_IMAGE_DIAGNOSTICS = import.meta.env.DEV && import.meta.env.VITE_ENABLE_IMAGE_DIAGNOSTICS === 'true';
@@ -625,6 +626,14 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       await showAlert('Chapter assignment is required for chapter heads and members.');
       return;
     }
+    const passwordError = getPasswordValidationError(userEditorForm.password, {
+      username: userEditorForm.username,
+      email: userEditorForm.email
+    });
+    if (passwordError) {
+      await showAlert(passwordError);
+      return;
+    }
     if (isPillarEditorRole && !assignedPillarId) {
       await showAlert('Pillar assignment is required for pillar editors.');
       return;
@@ -648,7 +657,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       const res = await AuthService.createUser(token, payload);
 
       if (!res.success) {
-        await showAlert('Failed to add user: ' + res.message);
+        await showAlert('Failed to add user: ' + (res.error || res.message || 'Unknown error'));
         return;
       }
 
@@ -685,6 +694,16 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       await showAlert('Chapter assignment is required for chapter heads and members.');
       return;
     }
+    if (userEditorForm.password) {
+      const passwordError = getPasswordValidationError(userEditorForm.password, {
+        username: userEditorForm.username,
+        email: userEditorForm.email
+      });
+      if (passwordError) {
+        await showAlert(passwordError);
+        return;
+      }
+    }
     if (isPillarEditorRole && !assignedPillarId) {
       await showAlert('Pillar assignment is required for pillar editors.');
       return;
@@ -708,14 +727,14 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
       });
 
       if (!updateRes.success) {
-        await showAlert('Failed to update user: ' + updateRes.message);
+        await showAlert('Failed to update user: ' + (updateRes.error || updateRes.message || 'Unknown error'));
         return;
       }
 
       if (userEditorForm.password) {
         const passRes = await AuthService.updatePassword(token, userEditorForm.userId, userEditorForm.password);
         if (!passRes.success) {
-          await showAlert('User info updated, but password update failed: ' + passRes.message);
+          await showAlert('User info updated, but password update failed: ' + (passRes.error || passRes.message || 'Unknown error'));
         }
       }
 
@@ -1018,12 +1037,12 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
 
   // --- RENDER ---
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-3 md:p-4 bg-black/90 backdrop-blur-sm transition-opacity duration-300 ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}>
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-2 backdrop-blur-sm transition-opacity duration-300 sm:p-3 md:p-4 ${isModalVisible ? 'opacity-100' : 'opacity-0'}`}>
       
-      <div className={`bg-[#0f172a] w-full max-w-[98vw] sm:max-w-4xl md:max-w-5xl lg:max-w-7xl max-h-[98vh] sm:max-h-[95vh] rounded-2xl sm:rounded-3xl border border-white/10 shadow-2xl overflow-hidden flex flex-col relative transition-all duration-300 ${isModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-95 opacity-0'}`}>
+      <div className={`relative flex max-h-[98vh] w-full max-w-[98vw] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0f172a] shadow-2xl transition-all duration-300 sm:max-h-[95vh] sm:max-w-6xl sm:rounded-3xl ${isModalVisible ? 'translate-y-0 scale-100 opacity-100' : 'translate-y-6 scale-95 opacity-0'}`}>
         
         {/* Header Section - Responsive */}
-        <div className="flex items-center justify-between p-4 sm:p-5 md:p-6 border-b border-white/10 bg-white/5 gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/10 bg-white/5 p-4 sm:gap-3 sm:p-5 md:p-6">
           <div className="flex items-center gap-2 sm:gap-3 md:gap-4 min-w-0">
             {view !== 'LIST' && (
               <button 
@@ -1060,7 +1079,7 @@ export const ChaptersManagement: React.FC<ChaptersManagementProps> = ({ onBack }
         </div>
 
         {/* Content Body - Responsive padding */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6 lg:p-8 custom-scrollbar">
+        <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto bg-gray-950/40 p-4 sm:p-5 md:p-6">
           
           {loading ? (
             <div className="space-y-4 sm:space-y-6">

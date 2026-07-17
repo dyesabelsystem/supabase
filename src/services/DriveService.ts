@@ -195,6 +195,18 @@ export const AuthService = {
       userId,
       newPassword
     });
+  },
+
+  sendPasswordReset: async (sessionToken: string, userId: string, redirectTo: string) => {
+    if (isLocalDemoSession(sessionToken)) {
+      return { success: true, message: 'Demo password reset email simulated.' };
+    }
+    return sendUsersRequest({
+      action: 'sendPasswordReset',
+      sessionToken,
+      userId,
+      redirectTo
+    });
   }
 };
 

@@ -510,17 +510,31 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
                   </div>
 
                   <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                    {Array.from({ length: 2 }).map((_, index) => (
-                      <div key={index} className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#051923]">
-                        <SkeletonBlock className="mb-6 h-7 w-52" />
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {Array.from({ length: 6 }).map((__, fieldIndex) => (
-                            <SkeletonBlock key={fieldIndex} className="h-11 w-full rounded-lg" />
-                          ))}
-                        </div>
-                        <SkeletonBlock className="mt-4 h-24 w-full rounded-lg" />
+                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#051923]">
+                      <SkeletonBlock className="mb-6 h-7 w-52 max-w-full" />
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {Array.from({ length: 6 }).map((_, fieldIndex) => (
+                          <SkeletonBlock key={fieldIndex} className="h-11 w-full rounded-lg" />
+                        ))}
                       </div>
-                    ))}
+                      <SkeletonBlock className="mt-4 h-[76px] w-full rounded-lg" />
+                      <SkeletonBlock className="mt-4 h-[96px] w-full rounded-lg" />
+                    </div>
+
+                    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#051923]">
+                      <SkeletonBlock className="mb-6 h-7 w-48 max-w-full" />
+                      <div className="space-y-4">
+                        {Array.from({ length: 3 }).map((_, rowIndex) => (
+                          <div key={rowIndex} className="grid grid-cols-1 items-center gap-3 md:grid-cols-[1fr_120px_180px_auto]">
+                            <SkeletonBlock className="h-11 w-full rounded-lg" />
+                            <SkeletonBlock className="h-11 w-full rounded-lg" />
+                            <SkeletonBlock className="h-11 w-full rounded-lg" />
+                            <SkeletonBlock className="h-5 w-5 rounded-md" />
+                          </div>
+                        ))}
+                        <SkeletonBlock className="h-10 w-40 rounded-lg" />
+                      </div>
+                    </div>
                   </div>
 
                   <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-[#051923]">
