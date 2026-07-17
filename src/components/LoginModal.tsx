@@ -6,7 +6,7 @@ import { LoadingScreen } from './LoadingScreen';
 import { supabase } from '../services/supabaseClient';
 import { AUTH_REDIRECT_MESSAGE_KEY } from '../contexts/AuthContext';
 import { ACCOUNT_NOT_FOUND_ERROR } from '../services/apiClient';
-import { toast } from 'sonner';
+import { appToast } from './AppToast';
 import { isLocalDemoAvailable, LOCAL_DEMO_PASSWORD, LOCAL_DEMO_USERS } from '../utils/demoAuth';
 
 interface LoginModalProps {
@@ -29,7 +29,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
 
   const showLoginError = (message: string) => {
     setError(message);
-    toast.error(message, { id: 'email-password-login-error' });
+    appToast.error(message, { id: 'email-password-login-error' });
   };
 
   useEffect(() => {
@@ -62,7 +62,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
           : oauthErrorDescription || 'Google sign in failed. Please try again.';
 
         setError(message);
-        toast.error(message, { id: 'google-oauth-error' });
+        appToast.error(message, { id: 'google-oauth-error' });
 
         ['error', 'error_code', 'error_description'].forEach((key) => {
           searchParams.delete(key);
@@ -82,7 +82,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
       const redirectMessage = window.sessionStorage.getItem(AUTH_REDIRECT_MESSAGE_KEY);
       if (redirectMessage) {
         setError(redirectMessage);
-        toast.error(redirectMessage, { id: 'google-oauth-error' });
+        appToast.error(redirectMessage, { id: 'google-oauth-error' });
         window.sessionStorage.removeItem(AUTH_REDIRECT_MESSAGE_KEY);
       } else if (!isAuthLoading) {
         setError('');

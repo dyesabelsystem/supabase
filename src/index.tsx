@@ -1,8 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { Toaster, toast } from 'sonner';
-import { registerSW } from 'virtual:pwa-register';
 import App from './App';
+import { AppToastViewport, appToast } from './components/AppToast';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AppDialogProvider } from './contexts/AppDialogContext';
 import { AuthProvider } from './contexts/AuthContext';
@@ -21,34 +20,58 @@ const applyInitialTheme = () => {
 
 applyInitialTheme();
 
-// Service Work er Registration and Update Handling
-let updateToastId: string | number | undefined;
-let updateToastActive = false;
-
-const updateSW = registerSW({
-  immediate: true,
-  onNeedRefresh() {
-    if (updateToastActive) return;
-    updateToastActive = true;
-    updateToastId = toast.info("New version available", {
-      description: "Refresh to update the app.",
-      duration: Infinity, // Keep open until action
-      action: {
-        label: "Refresh",
-        onClick: () => {
-          updateSW(true);
-          if (updateToastId !== undefined) {
-            toast.dismiss(updateToastId);
-          }
-          updateToastActive = false;
-        },
-      },
+// Register directly instead of using the PWA auto-update helper, which contains
+// a controller-change reload handler. Updates download in the background and
+// wait until every open app tab closes before activating.
+const registerServiceWorker = async () => {
+  let updateToastShown = false;
+  const showUpdateReady = () => {
+    if (updateToastShown) return;
+    updateToastShown = true;
+    appToast.success("Update downloaded", {
+      description: "It will be ready the next time you open the app. Your current session will continue.",
+      duration: 5000,
     });
-  },
-  onOfflineReady() {
-    toast.success("App ready for offline use.");
-  },
-});
+  };
+
+  try {
+    const registration = await navigator.serviceWorker.register('/sw.js', {
+      scope: '/',
+      type: 'classic',
+    });
+
+    const watchInstallingWorker = (worker: ServiceWorker | null) => {
+      if (!worker) return;
+      const isUpdate = Boolean(navigator.serviceWorker.controller);
+      worker.addEventListener('statechange', () => {
+        if (worker.state !== 'installed') return;
+        if (isUpdate) {
+          showUpdateReady();
+        } else {
+          appToast.success("App ready for offline use.");
+        }
+      });
+    };
+
+    if (registration.waiting && navigator.serviceWorker.controller) {
+      showUpdateReady();
+    }
+    watchInstallingWorker(registration.installing);
+    registration.addEventListener('updatefound', () => {
+      watchInstallingWorker(registration.installing);
+    });
+  } catch (error) {
+    console.error('Service worker registration failed:', error);
+  }
+};
+
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  if (document.readyState === 'complete') {
+    void registerServiceWorker();
+  } else {
+    window.addEventListener('load', () => void registerServiceWorker(), { once: true });
+  }
+}
 
 // Handle offline sync messages from SW
 if ("serviceWorker" in navigator) {
@@ -57,14 +80,14 @@ if ("serviceWorker" in navigator) {
     if (!data) return;
 
     if (data.type === "OFFLINE_WRITE_QUEUED") {
-      toast.info("You're offline", {
+      appToast.info("You're offline", {
         description: "Your changes are queued and will sync when you're online.",
         duration: 5000,
       });
     }
 
     if (data.type === "OFFLINE_QUEUE_SYNCED") {
-      toast.success("Back online", {
+      appToast.success("Back online", {
         description: "Queued changes have been synced.",
         duration: 4000,
       });
@@ -81,7 +104,7 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <Toaster position="bottom-right" closeButton visibleToasts={5} offset={20} />
+      <AppToastViewport />
       <AuthProvider>
         <AppDialogProvider>
           <App />

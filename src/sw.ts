@@ -1,6 +1,5 @@
 /// <reference lib="webworker" />
 
-import { clientsClaim } from 'workbox-core';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { BackgroundSyncPlugin } from 'workbox-background-sync';
 import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching';
@@ -17,9 +16,10 @@ declare global {
 
 self.__WB_DISABLE_DEV_LOGS = true;
 
-// Activate new service workers immediately
-self.skipWaiting();
-clientsClaim();
+// Do not call skipWaiting() or clientsClaim() here. Updated workers should
+// finish installing in the background, then wait for existing tabs to close
+// before activating so an in-progress session is never refreshed or split
+// across two app versions.
 
 const CACHE_VERSION = 'v2';
 const CACHE_NAMES = {

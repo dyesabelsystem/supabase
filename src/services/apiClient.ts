@@ -213,7 +213,7 @@ const invokeUserAdmin = async (payload: Payload): Promise<ApiResponse<any>> => {
 
 const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => {
   if (payload.action === 'logout') {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
     return { success: true };
   }
@@ -226,7 +226,7 @@ const handleAuthAction = async (payload: Payload): Promise<ApiResponse<any>> => 
     return { success: true, valid: true, user: mapProfile(profile) };
   }
   if (payload.action === 'login') {
-    const identifier = String(payload.username || '').trim();
+    const identifier = String(payload.username || '').trim().toLowerCase();
     if (!identifier.includes('@')) {
       return { success: false, error: 'Use your email address to sign in after the Supabase migration.' };
     }

@@ -20,7 +20,10 @@ export default defineConfig(() => {
           strategies: 'injectManifest',
           srcDir: 'src',
           filename: 'sw.ts',
-          registerType: 'autoUpdate',
+          injectRegister: null,
+          // Install updates in the background, but leave them waiting until all
+          // open app tabs close. This avoids an automatic in-session refresh.
+          registerType: 'prompt',
           includeAssets: [
             'favicon.ico', 
             'icons/favicon-16x16.png',

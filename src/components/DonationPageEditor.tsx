@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { toast } from 'sonner';
+import { appToast } from './AppToast';
 import {
   CreditCard,
   Image as ImageIcon,
@@ -215,7 +215,7 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
     const loadContent = async () => {
       const sessionToken = getSessionToken();
       if (!sessionToken) {
-        toast.error('Session expired. Please login again.');
+        appToast.error('Session expired. Please login again.');
         onBack();
         return;
       }
@@ -240,7 +240,7 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
         writeDonationEditorCache_(donationEditorCacheKey, result.data);
       } else {
         if (!cachedContent) {
-          toast.error(result.error || 'Unable to load donation page content.');
+          appToast.error(result.error || 'Unable to load donation page content.');
         }
       }
       setLoading(false);
@@ -380,7 +380,7 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
   const handleSave = async () => {
     const sessionToken = getSessionToken();
     if (!sessionToken) {
-      toast.error('Session expired. Please login again.');
+      appToast.error('Session expired. Please login again.');
       return;
     }
 
@@ -444,13 +444,13 @@ export const DonationPageEditor: React.FC<DonationPageEditorProps> = ({ onBack }
           });
           return {};
         });
-        toast.success(result.message || 'Donation content saved successfully.');
+        appToast.success(result.message || 'Donation content saved successfully.');
       } else {
-        toast.error(result.error || 'Unable to save donation page content.');
+        appToast.error(result.error || 'Unable to save donation page content.');
       }
     } catch (error) {
       console.error('[DonationPageEditor] Save failed', error);
-      toast.error(error instanceof Error ? error.message : 'Unable to save donation page content.');
+      appToast.error(error instanceof Error ? error.message : 'Unable to save donation page content.');
     } finally {
       setSaving(false);
     }
